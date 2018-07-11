@@ -44,7 +44,7 @@ class DetectionContainer extends React.Component<{}, IState > {
                     console.log(this.img);
                 }
             ).bind(this),
-    onObjDisable : (   (event:any) => {
+    onObjDisable : (   (i:number) => {
                     if( this.state.isFileLoaded ) {
                         this.objInds[i] = 0;
                     }
@@ -109,7 +109,7 @@ class DetectionContainer extends React.Component<{}, IState > {
       <div className='DetectionContainer'>
         <header className="Header">
           <h1 className="Title">Object Detector</h1>
-          <Control {...this.changeOptions} {...this.state} cats={this.objCats}/>
+          <Control {...this.changeOptions} {...this.state} cats={categories}/>
         </header>
         <div className="ImgView" style={{height:this.state.height+'px',width:this.state.width+'px'}}>
             <canvas className={"PredCanvas"} ref = {ref => this.predCanvas = ref}/>
@@ -210,7 +210,7 @@ class DetectionContainer extends React.Component<{}, IState > {
         DrawToCanvasUtil.shadeEverythingButRect(this.predCanvas, this.predictionsRect, "rgba(0, 0, 0, 0.7)");
         DrawToCanvasUtil.drawRect(this.predCanvas, this.predictionsRect, "rgba(255, 255, 255, 0.5)", 1);
   }
-  protected async predict():Promise<IDetected[]> {
+  protected async predict():Promise<IDetected[][]> {
 
     // Load model settings from app settings
     const anchors = Config.ModelAnchors;
@@ -239,9 +239,13 @@ class DetectionContainer extends React.Component<{}, IState > {
                                             allBoxes, boxConfidence, boxClassProbs, 0.01);
     let boxes = origBoxes;
     
+    // 2d predictions array  
+    const ret:IDetected[][] = new Array(categories.length)
+    for( let i = 0; i<ret.length; i++) { ret[i] = []; }
+
     // If all boxes have been filtered out
     if (boxes == null) {
-        return [];
+        return ret;
     }
 
     const width = tf.scalar(this.maxPix);
@@ -263,6 +267,31 @@ class DetectionContainer extends React.Component<{}, IState > {
 
     const classesIndexArr = await classes.gather(tf.tensor1d(keepIndx, 'int32')).data();
 
+    classesIndexArr.forEach((results:IDetected[], classIndexValue:number, index:number) => {
+        const classProbability = keepScores[index];
+        if (classProbability < this.classProbThreshold) {
+            return;
+        }
+
+        const className = categories[classIndexValue];
+        const [top, left, bottom, right] = boxesArr[index];
+
+        const x = Math.max(0, left);
+        const y = Math.max(0, top);
+        const w = Math.min(this.maxPix, right) - x;
+        const h = Math.min(this.maxPix, bottom) - y;
+        
+        const nextObject:IDetected = {
+            class: className,
+            probability: classProbability,
+            rect: new Rect(x, y, w, h)
+        };
+
+        ret[classIndexValue].push(nextObject);
+    });
+
+    return ret;
+    /*
     return classesIndexArr.reduce((results:IDetected[], classIndexValue:number, index:number) => {
         const classProbability = keepScores[index];
         if (classProbability < this.classProbThreshold) {
@@ -285,6 +314,7 @@ class DetectionContainer extends React.Component<{}, IState > {
 
         return results.concat([nextObject]);
     }, []);
+    */
 }
 
 }
