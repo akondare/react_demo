@@ -7,6 +7,9 @@
     ]
   },
   "rules": {
-    //"no-console": [true,"warning"]
+    "no-console": false
+  },
+  "jsRules": {
+    "no-console": [false]
   }
 }

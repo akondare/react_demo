@@ -1,17 +1,21 @@
-import * as tf from '@tensorflow/tfjs'
+import * as tf from '@tensorflow/tfjs';
 import * as React from 'react';
+import * as smartcrop from 'smartcrop';
+import '../Styles/App.css';
 import Config from './Config';
 import Control from './Control';
 import IDetected from './IDetected'
-import ImageView from './ImageView';
+// import ImageView from './ImageView';
 import categories from './Objects';
 import Rect from './Shapes/Rect';
 import DrawToCanvasUtil from './Utils/DrawToCanvasUtil'
 import ImgProcessingUtil from './Utils/ImgProcessingUtil'
 
+/*
 interface IProps {
-    style:React.CSSProperties
+  style:React.CSSProperties
 }
+*/
 interface IState {
   isModelLoaded:boolean;
   isFileLoaded:boolean;
@@ -22,7 +26,7 @@ interface IState {
   width:number;
 }
 
-class DetectionContainer extends React.Component<IProps, IState > {
+class DetectionContainer extends React.Component<{}, IState > {
 
   protected img:HTMLImageElement = new Image();
   protected readonly changeOptions = {
@@ -34,12 +38,21 @@ class DetectionContainer extends React.Component<IProps, IState > {
             ).bind(this),
     onFle : (   (event:any) => {
                     this.setState({isFileLoaded:true});
+                    console.log(URL.createObjectURL(event.target.files[0]));
+                    console.log(this.img);
                     this.img.src = URL.createObjectURL(event.target.files[0]);
+                    console.log(this.img);
                 }
             ).bind(this),
-    onObj : (   (event:any) => {
+    onObjDisable : (   (event:any) => {
                     if( this.state.isFileLoaded ) {
-                        /* TODO Change ObjCats */
+                        this.objInds[i] = 0;
+                    }
+                }
+            ).bind(this),
+    onObjEnable : (   (i:number) => {
+                    if( this.state.isFileLoaded ) {
+                        this.objInds[i] = 1;
                     }
                 }
             ).bind(this),
@@ -52,43 +65,60 @@ class DetectionContainer extends React.Component<IProps, IState > {
   // update on choosing image
   protected predCanvas:HTMLCanvasElement;
   protected imageCanvas:HTMLCanvasElement;
-  protected canvasWrapper:HTMLDivElement;
 
   // grab model config
   protected model:tf.Model;
   protected iouThreshold:number = Config.ModelIouThreshold;
   protected classProbThreshold:number = Config.ModelClassProbThreshold;
   protected maxPix:number = Config.ModelInputPixelSize;
-  protected objCats:string[] = categories;
+
+  // indexes of categories to include detections of 
+  protected objInds:number[] = categories.map((c)=>0);
 
   // update on prediction
-  protected predictions:number[];
-  protected predictionsRect:any; // add rect type
+  protected predictions:IDetected[][];
+  protected predictionsRect:Rect; // add rect type
 
   public constructor(props: any) {
       super(props);
       this.state = { isModelLoaded: false, isFileLoaded:false, areObjsDetected: false, isTraining: false, height: 0, width:0 };
+      this.loadImgToCanvas = this.loadImgToCanvas.bind(this);
+      this.detect = this.detect.bind(this);
+      this.predict = this.predict.bind(this);
+      this.loadModel = this.loadModel.bind(this);
   }
   public async componentDidMount() {
       this.loadModel();
       this.img.addEventListener('load', this.loadImgToCanvas)
   }
   public render() {
+    /*
     const imgViewStyle = { 
         height:this.state.height+"px",
         width:this.state.width+"px",
     };
+    const canvasStyle = {
+        // position: 'absolute'
+    } as React.CSSProperties;
+    const predCanStyle = {
+        // position: 'absolute',
+    } as React.CSSProperties;
+    */
     return (
       this.state.isModelLoaded && 
-      <div className='App'>
-        <header className="App-header">
-          <h1 className="App-title">Object Detector</h1>
+      <div className='DetectionContainer'>
+        <header className="Header">
+          <h1 className="Title">Object Detector</h1>
           <Control {...this.changeOptions} {...this.state} cats={this.objCats}/>
         </header>
-        <ImageView  {...this.state} style={imgViewStyle} imgCan={this.imageCanvas} predCan={this.predCanvas} />
+        <div className="ImgView" style={{height:this.state.height+'px',width:this.state.width+'px'}}>
+            <canvas className={"PredCanvas"} ref = {ref => this.predCanvas = ref}/>
+            <canvas className={"ImgCanvas"} ref = {ref => this.imageCanvas = ref}/>
+        </div>
       </div>
     );
   }
+  /* <ImageView  {...this.state} style={imgViewStyle} imgCan={this.imageCanvas} predCan={this.predCanvas} /> */
 
   protected async loadModel() {
       this.model = await tf.loadModel(Config.ModelPath);
@@ -96,6 +126,7 @@ class DetectionContainer extends React.Component<IProps, IState > {
   }
 
   protected loadImgToCanvas() {
+      console.log(this);
       const aspectRatio:number = this.img.naturalWidth / this.img.naturalHeight;
 
       if (this.img.naturalWidth >= this.img.naturalHeight) {
@@ -107,46 +138,50 @@ class DetectionContainer extends React.Component<IProps, IState > {
         this.imageCanvas.height = this.maxPix / aspectRatio;
       }
 
-        this.predCanvas.width = this.predCanvas.width;
-        this.predCanvas.height = this.predCanvas.height;
+        this.predCanvas.width = this.imageCanvas.width;
+        this.predCanvas.height = this.imageCanvas.height;
 
         this.setState({width:this.predCanvas.width,height:this.predCanvas.height})
 
         const ctx:CanvasRenderingContext2D = this.imageCanvas.getContext('2d');
         ctx.drawImage(this.img, 0, 0, this.imageCanvas.width, this.imageCanvas.height);
+        this.detect();
+        console.log(this.imageCanvas);
+        console.log(this.predCanvas);
+        console.log(this.state)
   };
 
-  protected async detect() {
-      await this.drawPredRects();
-      const predictions = await this.predict();
-
-      if(predictions === null) {
-        return;
-      }
-
-      const class2ColorLedger:any = {};
-      predictions.forEach((prediction:IDetected) => {
-        prediction.rect.translateByVector({x: this.predictionsRect.x, y: this.predictionsRect.y});
-                    
-        let color:string; 
-        if (prediction.class in class2ColorLedger) {
-            color = class2ColorLedger[prediction.class];
-        } else {
-            color = DrawToCanvasUtil.getRandomRGBColor();
-            class2ColorLedger[prediction.class] = color;
-        }
-                    
-        DrawToCanvasUtil.drawPredictionRect(this.predCanvas, prediction, 2, color, 12);
-      });
+  protected loadPredToCanvas() {
+    let color:string;
+    this.objInds.forEach((i) => {
+        color = DrawToCanvasUtil.getRandomRGBColor();
+        this.predictions[i].forEach((prediction:IDetected) => {
+            prediction.rect.translateByVector({x: this.predictionsRect.x, y: this.predictionsRect.y});
+            DrawToCanvasUtil.drawPredictionRect(this.predCanvas, prediction, 2, color, 12);
+        });
+    });
   }
 
-  protected async drawPredRects() {
-    /*
+  protected async detect() {
+    if( !this.state.areObjsDetected ) {
+      await this.drawPredRects();
+      this.predictions = await this.predict();
+      this.setState({areObjsDetected:true})
+    }
+
+    if(this.predictions !== null) {
+        this.loadPredToCanvas();
+    }
+  }
+
+  protected async seperate() {
         const size = Math.min(this.imageCanvas.width, this.imageCanvas.height);
         const imgSize = Math.min(this.img.naturalWidth, this.img.naturalHeight);
         const scale = imgSize/size;
 
-        let smartCropRect = await smartcrop.crop(this.img, { width: imgSize, height: imgSize });
+        
+
+        const smartCropRect = await smartcrop.crop(this.img, { width: imgSize, height: imgSize });
         
         this.predictionsRect = new Rect(
             smartCropRect.topCrop.x / scale,
@@ -155,9 +190,25 @@ class DetectionContainer extends React.Component<IProps, IState > {
             smartCropRect.topCrop.height / scale
         );
 
-        DrawUtil.shadeEverythingButRect(this.activeCanvas, this.predictionsRect, "rgba(0, 0, 0, 0.7)");
-        DrawUtil.drawRect(this.activeCanvas, this.predictionsRect, "rgba(255, 255, 255, 0.5)", 1);
-    */
+        DrawToCanvasUtil.shadeEverythingButRect(this.predCanvas, this.predictionsRect, "rgba(0, 0, 0, 0.7)");
+        DrawToCanvasUtil.drawRect(this.predCanvas, this.predictionsRect, "rgba(255, 255, 255, 0.5)", 1);
+  }
+  protected async drawPredRects() {
+        const size = Math.min(this.imageCanvas.width, this.imageCanvas.height);
+        const imgSize = Math.min(this.img.naturalWidth, this.img.naturalHeight);
+        const scale = imgSize/size;
+
+        const smartCropRect = await smartcrop.crop(this.img, { width: imgSize, height: imgSize });
+        
+        this.predictionsRect = new Rect(
+            smartCropRect.topCrop.x / scale,
+            smartCropRect.topCrop.y / scale,
+            smartCropRect.topCrop.width / scale,
+            smartCropRect.topCrop.height / scale
+        );
+
+        DrawToCanvasUtil.shadeEverythingButRect(this.predCanvas, this.predictionsRect, "rgba(0, 0, 0, 0.7)");
+        DrawToCanvasUtil.drawRect(this.predCanvas, this.predictionsRect, "rgba(255, 255, 255, 0.5)", 1);
   }
   protected async predict():Promise<IDetected[]> {
 

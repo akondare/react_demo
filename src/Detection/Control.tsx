@@ -1,5 +1,5 @@
 import * as React from 'react';
-import './App.css';
+import '../Styles/App.css';
 
 interface IControl {
     onDet:(event:any)=>any;
@@ -51,7 +51,7 @@ class Control extends React.Component<IControl, {}> {
         <div className="detect" style={{width:"35em"}}>
             <p>
             Type: {     }
-            <select name="Type">
+            <select name="type" multiple={true}>
                 {this.props.cats.map((c)=><option key={c}>{c}</option>)}
             </select> {     }
             <button onClick={this.props.onDet}>Detect</button>
