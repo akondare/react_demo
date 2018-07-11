@@ -6,10 +6,11 @@ interface IControl {
     onFle:(event:any)=>any;
     onObj:(event:any)=>any;
     onTrn:(event:any)=>any;
-    isLoaded:boolean;
-    isDetecting:boolean;
-    isTraining:boolean;
     cats:string[];
+    isModelLoaded:boolean;
+    isFileLoaded:boolean;
+    areObjsDetected:boolean;
+    isTraining:boolean;
 }
 
 class Control extends React.Component<IControl, {}> {
