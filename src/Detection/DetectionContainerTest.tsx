@@ -5,8 +5,10 @@ import '../Styles/App.css';
 import Config from './Config';
 import Control from './Control';
 import IDetected from './IDetected'
-// import ImageView from './ImageView';
+import ImageView from "./ImageView"
 import categories from './Objects';
+import PredictionView from "./PredictionView"
+import RetrainView from "./RetrainView"
 import Rect from './Shapes/Rect';
 import DrawToCanvasUtil from './Utils/DrawToCanvasUtil'
 import ImgProcessingUtil from './Utils/ImgProcessingUtil'
@@ -85,18 +87,6 @@ class DetectionContainer extends React.Component<{}, IState > {
         catInds:this.state.objInds,
         cats:categories,
     };
-    /*
-    const imgViewStyle = { 
-        height:this.state.height+"px",
-        width:this.state.width+"px",
-    };
-    const canvasStyle = {
-        // position: 'absolute'
-    } as React.CSSProperties;
-    const predCanStyle = {
-        // position: 'absolute',
-    } as React.CSSProperties;
-    */
     return (
       this.state.isModelLoaded && 
       <div className='DetectionContainer'>
@@ -105,8 +95,9 @@ class DetectionContainer extends React.Component<{}, IState > {
           <Control {...ControlProps}/>
         </header>
         <div className="ImgView" style={{height:this.state.height+'px',width:this.state.width+'px'}}>
-            <canvas className={"PredCanvas"} ref = {ref => this.predCanvas = ref}/>
-            <canvas className={"ImgCanvas"} ref = {ref => this.imageCanvas = ref}/>
+            <ImageView />
+            <PredictionView rects={this.predictions}/>
+            <RetrainView />
         </div>
       </div>
     );

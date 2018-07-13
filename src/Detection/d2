@@ -1,0 +1,69 @@
+import * as React from 'react';
+import '../Styles/App.css';
+
+interface IDropDownProps {
+    title:string;
+    itemStrings:string[];
+    itemsEnabled:number[];
+    enabled:boolean;
+    toggle:(i:number)=>void;
+}
+interface IDropDownState {
+    open:boolean;
+}
+
+export default class DropDown extends React.Component<IDropDownProps, IDropDownState> {
+
+  protected elems:string[];
+  protected funcs:Array<()=>void>;
+  public constructor(props: any) {
+      super(props);
+      this.funcs = this.props.itemsEnabled.map((e:number,i:number)=>(()=>props.toggle(i)));
+      this.elems = this.props.itemStrings;
+      this.state = {
+          open: false
+      };
+      this.toggleMenu = this.toggleMenu.bind(this);
+  }
+
+  public componentWillReceiveProps(nextProps) {
+      this.setState(prevState => ({open: (nextProps.enabled ? prevState.open : false) }));
+  }
+
+  public toggleMenu() {
+      this.setState(prevState => ({open: (this.props.enabled ? (!prevState.open) : false) }));
+  }
+
+  public getSelected(e) {
+      const options:HTMLOptionElement[] = Array.from(e.target.options); 
+      console.log(options.filter(o=>o.selected)[0].value)
+      // .filter(o=>o.selected).map((_,i) => i));
+  }
+
+  public render() {
+      return (
+          <select className="EnabledButton" onChange={this.getSelected}>
+            {this.elems.map( (elem:string,i:number) => (
+                <option key={i} value={elem}>{elem}</option>
+            ))}
+          </select>
+      );
+  }
+
+  protected empty:()=>void = () => {/*Nothing*/};
+}
+
+/*
+        <div className="DropDown">
+            <div className="DD-Menu" onClick={this.toggleMenu}>{this.props.title}</div>
+
+            {this.state.open && <ul className="DD-List">
+                {this.elems.map( (elem:string,i:number) => (
+                    this.props.itemsEnabled[i] ?
+                        <li className="enabledDropDownItem" key={i} onClick={this.funcs[i]}>{elem}</li>
+                    :
+                        <li className="disabledDropDownItem" key={i} onClick={this.empty}>{elem}</li>
+                ))}
+            </ul>}
+        </div>
+*/
