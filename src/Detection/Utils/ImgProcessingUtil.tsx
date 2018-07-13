@@ -1,4 +1,5 @@
 import * as tf from '@tensorflow/tfjs';
+import { Tensor } from '@tensorflow/tfjs';
 
 export default class ImgProcessingUtil {
 
@@ -122,6 +123,14 @@ export default class ImgProcessingUtil {
     
     public static boxIou(a, b) {
         return ImgProcessingUtil.boxIntersection(a, b) / ImgProcessingUtil.boxUnion(a, b);
+    }
+
+    public static translateBoxes(boxes:Tensor,x:number,y:number) {
+        console.log("old boxes: " + boxes.shape);
+        const newBoxes:Tensor = boxes.add(tf.tensor1d([y,x,y,x]))
+        console.log("new boxes: " + newBoxes.shape);
+        return boxes;
+        // return boxes.add(tf.tensor1d([y,x,y,x]));
     }
 
     public static filterBoxes(boxes, boxConfidence, boxClassProbs, threshold) {

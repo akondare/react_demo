@@ -1,4 +1,5 @@
 import IDetected from '../IDetected';
+import categories from '../Objects';
 import {IPoint,IRect,ISize} from '../Shapes/Shapes';
 import ConversionUtil from './ConversionUtil';
 
@@ -89,7 +90,7 @@ export default class DrawUtil {
         const ctx:CanvasRenderingContext2D = canvas.getContext('2d');
         ctx.save();
         ctx.font = "bold " + textSize + "px Titillium Web";
-        const txt = prediction.class + " " + prediction.probability.toFixed(2);
+        const txt = categories[prediction.classID] + " " + prediction.probability.toFixed(2);
         const padding = 2;
         const width = ctx.measureText(txt).width; 
         ctx.fillStyle = color;

@@ -1,7 +1,7 @@
 import Rect from './Shapes/Rect'
 
 export default interface IDetected {
-    class:string,
+    classID:number,
     probability:number,
     rect:Rect
 }

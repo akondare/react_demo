@@ -30,7 +30,7 @@ export default (props:IControl) => (
 
     <Button title="Detect" onClick={props.onDet} enabled={props.canDetect} />
 
-    <Button title="Retrain" onClick={props.onTrn} enabled={props.canTrain} />
+    <Button title="Select" onClick={props.onTrn} enabled={props.canTrain} />
   </div>
 );
 
