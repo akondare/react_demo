@@ -4,22 +4,19 @@ import DropDown from "./Options/DropDown"
 import FileInput from "./Options/FileInput"
 
 interface IProps {
-    canOpenFile: boolean;
-    canChangeClasses: boolean;
-    canDetect: boolean;
-    canCorrect: boolean;
-    canMark: boolean;
-    canAdd: boolean;
-    canRem: boolean;
+    optionsEnabled:boolean[],
+    optionHandlers:Array<()=>any>
+    classStrings:string[],
+    classesEnabled:boolean[]
 }
-export default (props:IProps) => {
-    return  <div className="Control">
-                <FileInput title="Open File" enabled={props.canOpenFile}/>
-                <DropDown title="Classes" enabled={props.canChangeClasses}/>
-                <Button title="Detect" enabled={props.canDetect}/>
-                <Button title="Correct" enabled={props.canCorrect}/>
-                <Button title="Mark Incorrect" enabled={props.canMark}/>
-                <Button title="Add New" enabled={props.canAdd}/>
-                <Button title="Remove New" enabled={props.canRem}/>
-            </div>
+
+export default function(props:IProps){
+    return  ( 
+        <div className="Control">
+                <FileInput title="Open File" enabled={props.optionsEnabled[0]} handler={props.optionHandlers[0]} />
+                <DropDown title="Classes" enabled={props.optionsEnabled[1]} handler={props.optionHandlers[1]} elemStrings={props.classStrings} elemsEnabled={props.classesEnabled} />
+                <Button title="Select Region" enabled={props.optionsEnabled[2]} handler={props.optionHandlers[2]}/>
+                <Button title="Detect" enabled={props.optionsEnabled[3]} handler={props.optionHandlers[3]}/>
+        </div> 
+    );
 };
