@@ -1,63 +1,103 @@
 .App {
+  height:100%;
+  width:100%;
   text-align: center;
+  background-color: #222;
 }
 
-.App-header {
-  background-color: #222;
+
+
+
+.Header {
   height: 150px;
   padding: 20px;
   color: white;
+  overflow:visible
+}
+.Detection {
+  text-align: center;
+  width: 100%;
+  height: 100%;
 }
 
-.App-title {
+
+
+
+
+
+
+.Title {
   font-size: 1.5em;
 }
-
-.App-intro {
-  font-size: large;
-}
-
 .Control {
-  display: flex;
+  height:48px;
+  display:flex;
   flex-direction: row;
+  justify-content: center;
+}
+.Canvases {
+  display: flex;
+  flex-direction: column;
   flex-wrap: nowrap;
   justify-content: center;
   align-content: center;
   align-items: center;
-  background-color: #222;
-  height: 150px;
-  padding: 20px;
-  color: white;
-}
-
-.enabledButton {
-    background-color: #4CAF50; /* Green */
-    border: none;
-    color: white;
-    padding: 15px 32px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
-}
-.disabledButton {
-    background-color: #f44336; /* Green */
-    border: none;
-    color: white;
-    padding: 15px 32px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
-}
-
-.Canvases {
-  position:relative
+  margin:auto;
 }
 .ImageCanvas {
-  position:absolute;
+  position: absolute;
 }
 .ZoneCanvas {
-  z-index:10;
-  position:absolute;
+  position: absolute;
+  z-index: 10;
+}
+
+
+.DropDown {
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  width:120px;
+}
+.DropDownList {
+  position:relative;
+  margin:auto;
+  z-index:50;
+}
+ul {
+  list-style-type: none;
+  vertical-align:center;
+  padding:0;
+  text-align:center;
+  width:100%;
+}
+
+
+
+.Button {
+  border: none;
+  color: white;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  padding: 15px 32px;
+}
+.ListElem {
+  border: none;
+  color: white;
+  /* padding: 15px 0px; */
+  padding: 15px 32px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 16px;
+}
+.Enabled {
+  background-color: #4CAF50; /* Green */
+}
+.Disabled {
+  background-color: #f44336; /* Green */
+}
+.Toggled {
+  background-color: #309040; /* Green */
 }

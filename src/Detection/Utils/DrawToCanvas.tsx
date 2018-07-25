@@ -1,4 +1,4 @@
-import {IObject} from "./Object";
+import IObject from "./IObject";
 import {IPoint} from "./Point";
 import {IRect} from "./Rect";
 
@@ -44,14 +44,14 @@ export default class DrawToCanvas {
         ctx.restore();
     }
 
-    public static drawPredictionRect(canvas:HTMLCanvasElement, prediction:IObject, thickness:number = 1, color:string = "#fff", textSize:number = 10): void {
+    public static drawPredictionRect(canvas:HTMLCanvasElement, classString:string, prediction:IObject, thickness:number = 1, color:string = "#fff", textSize:number = 10): void {
         DrawToCanvas.drawRect(canvas, prediction.rect, color, thickness);
 
         const ctx:CanvasRenderingContext2D = canvas.getContext('2d');
         ctx.save();
 
         ctx.font = "bold " + textSize + "px Titillium Web";
-        const txt = prediction.class + " " + prediction.probability.toFixed(2);
+        const txt = classString + " " + prediction.probability.toFixed(2);
         const padding = 2;
         const width = ctx.measureText(txt).width; 
         ctx.fillStyle = color;

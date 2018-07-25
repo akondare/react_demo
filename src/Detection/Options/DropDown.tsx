@@ -31,13 +31,13 @@ export default class DropDown extends React.Component<IProps,IState> {
     public render() {
         return  (
             <div className="DropDown">
-                <button className={this.props.enabled ? "enabledButton" : "disabledButton"} onClick={this.toggleMenu}>{this.props.title}</button>
+                <label className={"Button " + (this.props.enabled ? "Enabled" : "Disabled")} onClick={this.toggleMenu}>{this.props.title}</label>
                 { this.state.open && <ul className="DropDownList"> 
                     {
                         this.props.elemStrings.map((e,i) => (
                             this.props.elemsEnabled[i] 
-                                ? <li key={e} className="enabledButton">{e}</li>
-                                : <li key={e} className="disabledButton">{e}</li>
+                                ? <li key={e} className="ListElem Enabled">{e}</li>
+                                : <li key={e} className="ListElem Disabled">{e}</li>
                         ))
                     }
                 </ul> }

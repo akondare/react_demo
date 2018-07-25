@@ -1,7 +1,7 @@
 import {Rect} from "./Rect"
 
-export interface IObject {
-    class:string;
+export default interface IObject {
+    classID:number;
     probability:number;
     rect:Rect;
 }
