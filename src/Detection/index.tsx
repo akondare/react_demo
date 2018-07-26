@@ -159,7 +159,7 @@ export default class Detection extends React.Component<{}, IState>{
         this.setState({ isFileLoaded: true });
         this.imageData = tf.fromPixels(this.imageElement,3);
         URL.revokeObjectURL(this.imageElement.src);
-        console.log(this.imageData.print())
+        this.imageData.print()
     }
 
     public mouseDown(event: any) {
