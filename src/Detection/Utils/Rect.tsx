@@ -21,6 +21,10 @@ export class Rect implements IRect {
         this.h = height;
     }
 
+    public getDetails() {
+        return [this.x,this.y,this.w,this.h]
+    }
+
     public getCenterPoint():Point {
         const centerX:number = this.x + this.w/2;
         const centerY:number = this.y + this.h/2;

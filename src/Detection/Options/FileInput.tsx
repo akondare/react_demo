@@ -7,7 +7,6 @@ interface IProps {
 }
 
 export default function(props:IProps) {
-    console.log(props.enabled);
     return  <div className="FileInput">
         <input style={{display:'none'}} type="file" name="file" id="file" className="inputFile" onChange={props.enabled?props.handler:null}/>
         <label className={"Button " + (props.enabled ? "Enabled" : "Disabled")} htmlFor={props.enabled?"file":null} > {props.title} </label>
