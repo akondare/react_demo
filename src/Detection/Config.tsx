@@ -3,6 +3,7 @@ import * as tf from '@tensorflow/tfjs'
 export default class Config {
 
     public static ModelPath:string = 'https://raw.githubusercontent.com/SkalskiP/ILearnMachineLearning.js/master/models/tfjs-yolo-tiny/model.json';
+    // public static ModelPath:string = 'https://raw.githubusercontent.com/akondare/F18Model/master/model.json';
     public static ModelInputPixelSize:number = 416;
     public static ModelIouThreshold:number = 0.4;
     public static ModelClassProbThreshold:number = 0.5;
