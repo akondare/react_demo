@@ -328,7 +328,10 @@ export default class Detection extends React.Component<{}, IState>{
         canvas.width = w;
         canvas.height = h;
         context.drawImage(this.imageElement,x,y,w,h,0,0,w,h)
-        return tf.fromPixels(context.getImageData(0,0,w,h)).resizeBilinear([Config.ModelInputPixelSize, Config.ModelInputPixelSize], true).expandDims(0).toFloat().div(tf.scalar(255));
+        return tf.fromPixels(context.getImageData(0,0,w,h))
+                 .resizeBilinear([Config.ModelInputPixelSize, Config.ModelInputPixelSize], true)
+                 .expandDims(0)
+                 .toFloat().div(tf.scalar(255));
 
         // alternate implementations 
         /*
@@ -361,13 +364,10 @@ export default class Detection extends React.Component<{}, IState>{
         const [allBoxes, boxConfidence, boxClassProbs] = await tf.tidy(() => {
 
             const input: tf.Tensor4D = this.getPixelData(origX, origY, origW, origH);
-            // let batchedImage: tf.Tensor4D = pixelsCropped.expandDims(0);
-            // batchedImage = batchedImage.toFloat().div(tf.scalar(255))
-            // const modelOutput: tf.Tensor4D = this.model.predict(batchedImage) as tf.Tensor4D;
-
             const modelOutput: tf.Tensor4D = this.model.predict(input) as tf.Tensor4D;
 
             // console.log(tf.ENV);
+            console.log(modelOutput.shape)
 
             const [boxXY, boxWH, boxC, boxClassP] = ModelOutputUtil.yoloHead(modelOutput, anchors, numClasses);
             const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
@@ -378,10 +378,6 @@ export default class Detection extends React.Component<{}, IState>{
         const [origBoxes, scores, classes] = await ModelOutputUtil.filterBoxes(
             allBoxes, boxConfidence, boxClassProbs, 0.01);
         let boxes = origBoxes;
-
-        // 2d predictions array  
-        // const ret:IDetected[][] = new Array<IDetected[]>(categories.length);
-        // for(let i = 0; i<categories.length;i++) {ret[i]=[]}
 
         // If all boxes have been filtered out
         if (boxes == null) {
