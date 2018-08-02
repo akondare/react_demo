@@ -47,6 +47,53 @@ export default class ModelOutputUtil {
     }
 
     /**
+     * Convert data received from final layer to bounding box parameters
+     * @param modelOutput - output of final convolutional layer
+     * @param anchorBoxes - anchor box widths and heights
+     * @param numClasses - number of target classes
+     */
+    public static yolo3Head(modelOutput, anchorBoxes, numClasses) {
+
+        // const [first,second] = modelOutput;
+
+        anchorBoxes = []
+
+        const numberOfAnchorBoxes = anchorBoxes.shape[0]; 
+        const anchorsTensor = tf.reshape(anchorBoxes, [1, 1, anchorBoxes.shape[0], anchorBoxes.shape[1]]);
+
+        // Each photo is divided into a grid of cells
+        let gridSize = modelOutput.shape.slice(1, 3);
+        const gridSizeV = gridSize[0];
+        const gridSizeH = gridSize[1];
+      
+        // In YOLO vertical index is the inner most iteration.
+        let gridIndexV = tf.range(0, gridSizeV);
+        let gridIndexH = tf.range(0, gridSizeH);
+
+        gridIndexV = tf.tile(gridIndexV, [gridSize[1]])
+        gridIndexH = tf.tile(tf.expandDims(gridIndexH, 0), [gridSize[0], 1]);
+        gridIndexH = tf.transpose(gridIndexH).flatten();
+      
+        let convIndex = tf.transpose(tf.stack([gridIndexV, gridIndexH]));
+        convIndex = tf.reshape(convIndex, [gridSize[0], gridSize[1], 1, 2])
+        convIndex = tf.cast(convIndex, modelOutput.dtype);
+
+        modelOutput = tf.reshape(modelOutput, [gridSize[0], gridSize[1], numberOfAnchorBoxes, numClasses + numberOfAnchorBoxes]);
+        gridSize = tf.cast(tf.reshape(tf.tensor1d(gridSize), [1,1,1,2]), modelOutput.dtype);
+      
+        let boxPosition = tf.sigmoid(modelOutput.slice([0,0,0,0], [gridSizeV, gridSizeH, numberOfAnchorBoxes, 2]))
+        let boxSize = tf.exp(modelOutput.slice([0,0,0,2], [gridSizeV, gridSizeH, numberOfAnchorBoxes, 2]))
+        const boxConfidence = tf.sigmoid(modelOutput.slice([0,0,0,4], [gridSizeV, gridSizeH, numberOfAnchorBoxes, 1]))
+        const boxClassProbs = tf.softmax(modelOutput.slice([0,0,0,5],[gridSizeV, gridSizeH, numberOfAnchorBoxes, numClasses]));
+      
+        // Adjust preditions to each spatial grid point and anchor size
+        boxPosition = tf.div(tf.add(boxPosition, convIndex), gridSize);
+        boxSize = tf.div(tf.mul(boxSize, anchorsTensor), gridSize);
+      
+        return [ boxPosition, boxSize, boxConfidence, boxClassProbs ];
+    }
+
+    /**
      * Convert box predictions to bounding box corners
      * @param boxPosition 
      * @param boxSize 
