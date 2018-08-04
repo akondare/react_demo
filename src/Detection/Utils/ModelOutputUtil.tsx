@@ -31,7 +31,7 @@ export default class ModelOutputUtil {
         convIndex = tf.reshape(convIndex, [gridSize[0], gridSize[1], 1, 2])
         convIndex = tf.cast(convIndex, modelOutput.dtype);
       
-        modelOutput = tf.reshape(modelOutput, [gridSize[0], gridSize[1], numberOfAnchorBoxes, numClasses + numberOfAnchorBoxes]);
+        modelOutput = tf.reshape(modelOutput, [gridSize[0], gridSize[1], numberOfAnchorBoxes, numClasses + 5]);
         gridSize = tf.cast(tf.reshape(tf.tensor1d(gridSize), [1,1,1,2]), modelOutput.dtype);
       
         let boxPosition = tf.sigmoid(modelOutput.slice([0,0,0,0], [gridSizeV, gridSizeH, numberOfAnchorBoxes, 2]))
@@ -54,10 +54,33 @@ export default class ModelOutputUtil {
      */
     public static yolo3Head(modelOutput, anchorBoxes, numClasses) {
 
-        // const [first,second] = modelOutput;
+        const [first,second] = modelOutput
+        const [a1,a2] = anchorBoxes
 
-        anchorBoxes = []
+        const [ bP1, bS1, bC1, bCP1 ]:Tensor[] = ModelOutputUtil.yoloHead(first,a1,numClasses)
+        const [ bP2, bS2, bC2, bCP2 ] = ModelOutputUtil.yoloHead(second,a2,numClasses);
 
+        const boxConfidence = tf.concat([bC1,bC2]);
+        const boxPosition = tf.concat([bP1,bP2]);
+        const boxSize = tf.concat([bS1,bS2]);
+        const boxClassProbs = tf.concat([bCP1,bCP2]);
+
+
+        [bP1,bP2,bS1,bS2,bC1,bC2,bCP1,bCP2].forEach(t => t.dispose());
+
+
+        /*
+        modelOutput.forEach( (t:tf.Tensor4D,i) => {
+            const [ bP, bS, bC, bCP ] = ModelOutputUtil.yoloHead(t,anchorBoxes[i],numClasses);
+            boxPosition.push(bP);
+            boxSize.push(bS);
+            boxConfidence.push(bC);
+            boxClassProbs.push(bCP);
+        })
+        */
+
+        return [ boxPosition, boxSize, boxConfidence, boxClassProbs ];
+        /*
         const numberOfAnchorBoxes = anchorBoxes.shape[0]; 
         const anchorsTensor = tf.reshape(anchorBoxes, [1, 1, anchorBoxes.shape[0], anchorBoxes.shape[1]]);
 
@@ -91,6 +114,7 @@ export default class ModelOutputUtil {
         boxSize = tf.div(tf.mul(boxSize, anchorsTensor), gridSize);
       
         return [ boxPosition, boxSize, boxConfidence, boxClassProbs ];
+        */
     }
 
     /**
@@ -116,7 +140,12 @@ export default class ModelOutputUtil {
         ], 3);
     }
 
-    public static nonMaxSuppression(boxes, scores, iouThreshold) {
+    public static async nonMaxSuppression(boxesTensor:Tensor, scoresTensor:Tensor, classesTensor:Tensor,iouThreshold:number) {
+        const [boxes,scores]:Array<Float32Array|Int32Array|Uint8Array> = await Promise.all([
+            boxesTensor.data(),
+            scoresTensor.data()
+        ]);
+
         // Zip together scores, box corners, and index
         const zipped = [];
         for (let i=0; i<scores.length; i++) {
@@ -134,8 +163,10 @@ export default class ModelOutputUtil {
         sortedBoxes.forEach(box => {
             let add = true;
             for( const sel of selectedBoxes) {
-                const curIou = ModelOutputUtil.boxIou(box[1],sel[1])
-                if (curIou > iouThreshold) {
+                const inter = ModelOutputUtil.boxIntersection(box[1],sel[1])
+                const union = ModelOutputUtil.boxUnion(box[1],sel[1])
+                // const curIou = ModelOutputUtil.boxIou(box[1],sel[1])
+                if (((inter/union) > iouThreshold) || (((box[1][3]-box[1][1]) * (box[1][2]-box[1][0]))-inter)<0.5 ) {
                     add = false;
                     break;
                 }
@@ -145,12 +176,22 @@ export default class ModelOutputUtil {
                 selectedBoxes.push(box);
             }
         });
+
+        console.log("selectedboxes", selectedBoxes);
+
+        const selBoxes:number[][] = selectedBoxes.map(e => e[1])
+        const selScores:number[] = selectedBoxes.map(e => e[0])
+
+        const indsTensor:tf.Tensor1D = tf.tensor1d(selectedBoxes.map(e=>e[2]),'int32')
+        const selCTensor:tf.Tensor = classesTensor.gather(indsTensor)
+        const selClasses:number[] = Array.from(await selCTensor.data());
+        tf.dispose([indsTensor,selCTensor]);
       
         // Return the kept indices and bounding boxes
         return [
-            selectedBoxes.map(e => e[2]),
-            selectedBoxes.map(e => e[1]),
-            selectedBoxes.map(e => e[0]),
+            selBoxes,
+            selScores,
+            selClasses,
         ];
     }
 

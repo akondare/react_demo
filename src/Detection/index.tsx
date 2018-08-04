@@ -76,6 +76,9 @@ export default class Detection extends React.Component<{}, IState>{
     protected prevX = -1;
     protected prevY = -1;
 
+    protected width:number= 0;
+    protected height:number = 0;
+
     /* event handlers to pass along to Control Component 
         openFile - opens file 
         changeClasses - toggle detection of class
@@ -144,8 +147,14 @@ export default class Detection extends React.Component<{}, IState>{
     /*  componentDidMount() 
             Upon component being mounted, start loading the model asynchronously, and add event handler to load image to canvas upon availability
     */
-    public componentDidMount() {
+    public async componentWillMount() {
         this.loadModel();
+        this.imageElement.addEventListener('load', this.loadImage);
+        tf.disposeVariables();
+    }
+    public async componentWillUnmount() {
+        this.model = null;
+        tf.disposeVariables();
         this.imageElement.addEventListener('load', this.loadImage);
     }
 
@@ -185,7 +194,8 @@ export default class Detection extends React.Component<{}, IState>{
 
     // loads model from Config.ModelPath asynchronously
     protected async loadModel() {
-        // tf.setBackend('cpu');
+        // tf.setBackend('cpu'); 
+        // tf.ENV.set('DEBUG',true);
         this.model = await tf.loadModel(Config.ModelPath);
         this.setState({ isModelLoaded: true });
     }
@@ -323,16 +333,49 @@ export default class Detection extends React.Component<{}, IState>{
     }
 
     protected getPixelData(x, y, w, h):tf.Tensor4D {
-        // tf resize
         const canvas: HTMLCanvasElement = document.createElement('canvas');
         const context: CanvasRenderingContext2D = canvas.getContext('2d');
-        canvas.width = w;
-        canvas.height = h;
-        context.drawImage(this.imageElement,x,y,w,h,0,0,w,h)
-        return tf.fromPixels(context.getImageData(0,0,w,h))
-                 .resizeBilinear([Config.ModelInputPixelSize, Config.ModelInputPixelSize], true)
+
+        if(v3 === true) {
+            canvas.width = Config.ModelInputPixelSize;
+            canvas.height = Config.ModelInputPixelSize;
+            context.drawImage(this.imageElement,x,y,w,h,0,0,Config.ModelInputPixelSize,Config.ModelInputPixelSize)
+            return tf.fromPixels(context.getImageData(0,0,Config.ModelInputPixelSize,Config.ModelInputPixelSize))
+                     .expandDims(0)
+                     .toFloat().div(tf.scalar(255));
+            /*
+            canvas.width = w;
+            canvas.height = h;
+            context.drawImage(this.imageElement,x,y,w,h,0,0,w,h)
+            return tf.fromPixels(context.getImageData(0,0,w,h))
+                     .resizeBilinear([Config.ModelInputPixelSize, Config.ModelInputPixelSize], true)
+            */
+        }
+
+        const nw = w-(w%32)
+        const nh = h-(h%32)
+        canvas.width = nw;
+        canvas.height = nh;
+        context.drawImage(this.imageElement,x,y,w,h,0,0,nw,nh)
+        return tf.fromPixels(context.getImageData(0,0,nw,nh))
                  .expandDims(0)
                  .toFloat().div(tf.scalar(255));
+        /*
+        const size = Config.ModelInputPixelSize
+        const scale = Math.min(w/size, h/size)
+        const nw = Math.floor((size*scale))
+        const nh = Math.floor((size*scale))
+        const padW = (size-nw)/2
+        const padH = (size-nh)/2
+        const canvas: HTMLCanvasElement = document.createElement('canvas');
+        const context: CanvasRenderingContext2D = canvas.getContext('2d');
+        canvas.width = nw;
+        canvas.height = nh;
+        context.drawImage(this.imageElement,x,y,w,h,padW,padH,nw,nh)
+        return tf.fromPixels(context.getImageData(0,0,size,size))
+                 .expandDims(0)
+                 .toFloat().div(tf.scalar(255));
+                 */
 
         // alternate implementations 
         /*
@@ -353,6 +396,7 @@ export default class Detection extends React.Component<{}, IState>{
     }
 
     protected async predict(zone: Rect) {
+
         const [x,y,w,h] = [
             Math.floor(zone.x * this.origScale),
             Math.floor(zone.y * this.origScale),
@@ -360,49 +404,133 @@ export default class Detection extends React.Component<{}, IState>{
             Math.ceil(zone.h * this.origScale),
         ];
 
-        // get detections by running inference, filtering by score, and then apply non maximum suppression
-        const [allB,allC,allP] = tf.tidy(()=>this.runInference(x,y,w,h));
-        const [preB,preS,preC] = tf.tidy(()=>this.filterBoxes(allB,allC,allP, 0.01));
-        if (preB==null) {
-            return []
-        };
+        /* get list of detections by running inference, filtering by score, 
+           converting to pixel coordinates relative to input size, and transferring data from Tensors in GPU to TypedArrays  */
+        // const [boxes,scores,classes]:Array<(number[]|number[][])> = await tf.tidy(() => this.runInference(x,y,w,h)); 
+        const [boxes,scores,classes]:Array<number[]|number[][]> = await this.runInference(x,y,w,h); 
 
-        const [boxes,scores,classes] = await this.nms(preB,preS,preC);
+        // console.log(boxes.length,scores.length,classes.length)
+        // console.log(boxes,scores,classes)
 
-        // transfer data from tensors in gpu memory to cpu
-        const [boxArr,scoresArr,classesArr] = await Promise.all([
-            boxes.data(),
-            scores.data(),
-            classes.data(),
-        ]) 
-
-        // dispose of all variables in this scope
-        allB.dispose();
-        allC.dispose();
-        allP.dispose();
-        preB.dispose();
-        preS.dispose();
-        preC.dispose();
-        boxes.dispose();
-        scores.dispose();
-        classes.dispose();
-
+        // run nonMaximumSuppression on CPU as there is no way currently to run on WebGL
+        // const [boxes,scores,classes]:Array<(number | number[])> = ModelOutputUtil.nonMaxSuppression(preB,preS,preC,Config.ModelIouThreshold)
 
         // filter by class probability and convert to adaptable format
-        const results:IObject[] = this.getFinalPreds(boxArr,scoresArr,classesArr,zone)
+        const results:IObject[] = this.getFinalPreds(boxes,scores,classes,zone)
+
         return results;
     }
 
-    protected runInference(x,y,w,h) {
+    protected async runInference(x,y,w,h) {
+        const input: tf.Tensor4D = tf.tidy(() => this.getPixelData(x, y, w, h));
+        this.width = input.shape[2]
+        this.height = input.shape[1]
+        console.log(this.width,this.height)
+
+        const [preB,preS,preC]:tf.Tensor[] = tf.tidy(() => (v3 ? this.runOnV3(input) : this.runOnV2(input)));
+        tf.dispose(input)
+
+        if (preB==null) {
+            tf.dispose([preB,preS,preC])
+            console.log("null")
+            return []
+        };
+
+        console.log("After Inference",preB.shape,preS.shape,preC.shape)
+        console.log(preB,preS,preC)
+
+        const results:Array<number[]|number[][]> = await ModelOutputUtil.nonMaxSuppression(preB,preS,preC,Config.ModelIouThreshold)
+        console.log("After NMS :", results[0].length, results)
+
+        tf.dispose([preB,preS,preC])
+        tf.disposeVariables();
+        console.log("after :", tf.memory())
+
+        return results;
+    }
+
+    protected runOnV3(input:tf.Tensor4D) {
+        const modelOutput: tf.Tensor4D = this.model.predict(input) as tf.Tensor4D;
+
+        console.log(modelOutput[0].shape,modelOutput[1].shape)
+
+        const [postB,postS,postC] = tf.tidy(()=> {
+            // const numX = modelOutput.shape[2]
+            // const numY = modelOutput.shape[1]
+            const [boxXY, boxWH, boxC, boxClassP] = ModelOutputUtil.yoloHead(modelOutput[0], tf.tensor2d(Config.Model3Anchors[0],[3,2],'float32').div(tf.scalar(32.0)), Config.ModelClassCount);
+            const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
+            return this.filterBoxes(allB,boxC,boxClassP,0.01);
+        });
+        modelOutput[0].dispose();
+        const [postB1,postS1,postC1] = tf.tidy(()=> {
+            const [boxXY, boxWH, boxC, boxClassP] = ModelOutputUtil.yoloHead(modelOutput[1], tf.tensor2d(Config.Model3Anchors[1],[3,2],'float32').div(tf.scalar(32.0)), Config.ModelClassCount);
+            const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
+            return this.filterBoxes(allB,boxC,boxClassP,0.01);
+        });
+        modelOutput[1].dispose();
+
+        const final =  [
+            tf.concat([postB,postB1]), 
+            tf.concat([postS,postS1]), 
+            tf.concat([postC,postC1]), 
+        ];
+
+        // tf.dispose([postB,postB1,postS,postS1,postC,postC1]);
+        return final
+    }
+    protected runOnV2(input:tf.Tensor4D) {
+        const modelOutput: tf.Tensor4D = this.model.predict(input) as tf.Tensor4D;
+
+        const [boxXY, boxWH, boxC, boxClassP] = ModelOutputUtil.yoloHead(modelOutput, tf.tensor2d(Config.ModelAnchors), Config.ModelClassCount);
+        const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
+        return this.filterBoxes(allB,boxC,boxClassP,0.01);
+    }
+
+    protected runInferenceV3(x,y,w,h) {
         const input: tf.Tensor4D = this.getPixelData(x, y, w, h);
         const modelOutput: tf.Tensor4D = this.model.predict(input) as tf.Tensor4D;
 
-        console.log(modelOutput.shape)
+        const [postB,postS,postC] = tf.tidy(()=> {
+            const [boxXY, boxWH, boxC, boxClassP] = ModelOutputUtil.yoloHead(modelOutput[0], Config.ModelAnchors[0], Config.ModelClassCount);
+            const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
+            return this.filterBoxes(allB,boxC,boxClassP,0.01);
+        });
+        modelOutput[0].dispose();
+        const [postB1,postS1,postC1] = tf.tidy(()=> {
+            const [boxXY, boxWH, boxC, boxClassP] = ModelOutputUtil.yoloHead(modelOutput[1], Config.ModelAnchors[1], Config.ModelClassCount);
+            const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
+            return this.filterBoxes(allB,boxC,boxClassP,0.01);
+        });
+        modelOutput[1].dispose();
 
-        const postProc:any = v3 ? ModelOutputUtil.yolo3Head : ModelOutputUtil.yoloHead;  
-        const [boxXY, boxWH, boxC, boxClassP] = postProc(modelOutput, Config.ModelAnchors, Config.ModelClassCount);
+        const final =  [
+            tf.concat([postB,postB1]), 
+            tf.concat([postS,postS1]), 
+            tf.concat([postC,postC1]), 
+        ];
+
+        [postB,postB1,postS,postS1,postC,postC1].forEach(e=>e.dispose());
+        return final
+    }
+
+    /*
+    protected runInference() {
+        const input: tf.Tensor4D = this.getPixelData(x, y, w, h);
+        const modelOutput: tf.Tensor4D = this.model.predict(input) as tf.Tensor4D;
+
+        const [boxXY, boxWH, boxC, boxClassP] = ModelOutputUtil.yoloHead(modelOutput[0], Config.ModelAnchors, Config.ModelClassCount);
         const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
-        return [allB, boxC, boxClassP];
+        const [postB,postS,postC] = this.filterBoxes(allB,boxC,boxClassP,0.01);
+    }
+    */
+
+    protected runInferenceV2(x,y,w,h) {
+        const input: tf.Tensor4D = this.getPixelData(x, y, w, h);
+        const modelOutput: tf.Tensor4D = this.model.predict(input) as tf.Tensor4D;
+
+        const [boxXY, boxWH, boxC, boxClassP] = ModelOutputUtil.yoloHead(modelOutput, Config.ModelAnchors, Config.ModelClassCount);
+        const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
+        return this.filterBoxes(allB,boxC,boxClassP,0.01);
     }
     protected filterBoxes(boxes,confs,probs,threshold){
         const boxScores = tf.mul(confs, probs);
@@ -416,51 +544,53 @@ export default class Detection extends React.Component<{}, IState>{
         const allIndices = tf.linspace(0, N - 1, N).toInt();
         const negIndices = tf.zeros([N], 'int32');
         const indices:any = tf.where(predictionMask, allIndices, negIndices);
+
+        const imgDims:tf.Tensor2D = tf.tensor([this.height,this.width,this.height,this.width],[1,4])
       
         return [
-          tf.gather(boxes.reshape([N, 4]), indices),
+          tf.gather(boxes.reshape([N, 4]), indices).mul(imgDims),
           tf.gather(boxClassScores.flatten(), indices),
           tf.gather(boxClasses.flatten(), indices),
         ];
     }
     protected async nms(boxes,scores,classes) {
-        const width = tf.scalar(Config.ModelInputPixelSize);
-        const height = tf.scalar(Config.ModelInputPixelSize);
-        const dims = tf.stack([height, width, height, width]).reshape([1,4]);
-        boxes = tf.mul(boxes, dims);
-        width.dispose()
-        height.dispose()
+
+        const dims:tf.Tensor2D = tf.tensor2d([Config.ModelInputPixelSize,Config.ModelInputPixelSize,Config.ModelInputPixelSize,Config.ModelInputPixelSize],[1,4])
+        const scaledBoxes:tf.Tensor<tf.Rank.R2> = tf.mul(boxes, dims);
         dims.dispose()
 
         const maxOutputSize = Infinity;
         const scoreThreshold = null;
-        const indices:tf.Tensor1D = await tf.image.nonMaxSuppressionAsync(boxes,scores,maxOutputSize,Config.ModelIouThreshold,scoreThreshold);
+        const indices:tf.Tensor1D = await tf.image.nonMaxSuppressionAsync(scaledBoxes,scores,maxOutputSize,Config.ModelIouThreshold,scoreThreshold);
         const final =  [
-          tf.gather(boxes, indices),
+          tf.gather(scaledBoxes, indices),
           tf.gather(scores, indices),
           tf.gather(classes, indices),
         ];
+        scaledBoxes.dispose();
         indices.dispose();
+
         return final;
     }
     protected getFinalPreds(boxes,scores,classes,zone) {
-        const ratioX = zone.w / Config.ModelInputPixelSize;
-        const ratioY = zone.h / Config.ModelInputPixelSize;
+        const ratioX = zone.w / this.width;
+        const ratioY = zone.h / this.height;
         const results:IObject[] = [];
 
-        for(let i = 0; i<boxes.length;i++) {
-            const [top,left,bottom,right] = boxes.slice(i*4,(i+1)*4);
+        // for(let i = 0; i<boxes.length;i++) {
+        boxes.forEach((b,i) => {
+            const [top,left,bottom,right] = b
             const prob = scores[i];
             const classId = classes[i];
 
             if (prob < Config.ModelClassProbThreshold) {
-                break;
+                return
             }
 
             const x = Math.max(0, left) * ratioX;
             const y = Math.max(0, top) * ratioY;
-            const w = Math.min(Config.ModelInputPixelSize, right * ratioX) - x;
-            const h = Math.min(Config.ModelInputPixelSize, bottom * ratioY) - y;
+            const w = Math.min(this.width, right * ratioX) - x;
+            const h = Math.min(this.height, bottom * ratioY) - y;
 
             const nextObject: IObject = {
                 classID: classId,
@@ -469,9 +599,8 @@ export default class Detection extends React.Component<{}, IState>{
             };
 
             results.push(nextObject);
-        }
+        });
 
-        console.log(results);
         return results;
     }
 
@@ -506,9 +635,13 @@ export default class Detection extends React.Component<{}, IState>{
             this.predictions = Array<IObject[]>(this.classes.length);
             for (let i = 0; i < this.classes.length; i++) { this.predictions[i] = [] };
 
-            console.log("Memory Before", tf.memory().numTensors);
-            const allPreds: IObject[] = await this.predict(this.selectedZone)
-            console.log("Memory After", tf.memory().numTensors);
+            const allPreds: IObject[] = await this.predict(this.selectedZone);
+            /*
+            let allPreds:IObject[];
+            console.log(await tf.time(async ()=>{
+                allPreds = await this.predict(this.selectedZone);
+            }));
+            */
 
             allPreds.forEach((e,i) => {
                 this.predictions[e.classID].push(e);
