@@ -4,19 +4,25 @@ import DropDown from "./Options/DropDown"
 import FileInput from "./Options/FileInput"
 
 interface IProps {
+    classStrings:string[]
+    classSelected:boolean[]
+    modelStrings:string[]
+    modelSelected:boolean[]
     optionsEnabled:boolean[],
     optionHandlers:Array<()=>any>
-    classStrings:string[],
-    classesEnabled:boolean[]
 }
 
 export default function(props:IProps){
+    const [modelHandler,fileHandler,classHandler,selectHandler,detectHandler] = props.optionHandlers;
+    const [modelEnabled,fileEnabled,classEnabled,selectEnabled,selectToggled,detectEnabled] = props.optionsEnabled;
+
     return  ( 
         <div className="Control">
-            <FileInput title="Open File" enabled={props.optionsEnabled[0]} handler={props.optionHandlers[0]} />
-            <DropDown title="Classes" enabled={props.optionsEnabled[1]} handler={props.optionHandlers[1]} elemStrings={props.classStrings} elemsEnabled={props.classesEnabled} />
-            <Button title="Select Region" enabled={props.optionsEnabled[2]} handler={props.optionHandlers[2]} toggle={props.optionsEnabled[3]}/>
-            <Button title="Detect" enabled={props.optionsEnabled[4]} handler={props.optionHandlers[3]}/>
+            <DropDown title="Model" enabled={modelEnabled} handler={modelHandler} elemStrings={props.modelStrings} elemsEnabled={props.modelSelected} />
+            <FileInput title="File" enabled={fileEnabled} handler={fileHandler} />
+            <DropDown title="Classes" enabled={classEnabled} handler={classHandler} elemStrings={props.classStrings} elemsEnabled={props.classSelected} />
+            <Button title="Select Region" enabled={selectEnabled} handler={selectHandler} toggle={selectToggled}/>
+            <Button title="Detect" enabled={detectEnabled} handler={detectHandler}/>
         </div> 
     );
 };

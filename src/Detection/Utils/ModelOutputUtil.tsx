@@ -141,12 +141,12 @@ export default class ModelOutputUtil {
     }
 
     public static async nonMaxSuppression(boxesTensor:Tensor, scoresTensor:Tensor, classesTensor:Tensor,iouThreshold:number) {
+        console.log(boxesTensor.shape,scoresTensor,classesTensor,iouThreshold);
         const [boxes,scores]:Array<Float32Array|Int32Array|Uint8Array> = await Promise.all([
             boxesTensor.data(),
             scoresTensor.data()
         ]);
 
-        // Zip together scores, box corners, and index
         const zipped = [];
         for (let i=0; i<scores.length; i++) {
           zipped.push([
@@ -166,7 +166,7 @@ export default class ModelOutputUtil {
                 const inter = ModelOutputUtil.boxIntersection(box[1],sel[1])
                 const union = ModelOutputUtil.boxUnion(box[1],sel[1])
                 // const curIou = ModelOutputUtil.boxIou(box[1],sel[1])
-                if (((inter/union) > iouThreshold) || (((box[1][3]-box[1][1]) * (box[1][2]-box[1][0]))-inter)<0.5 ) {
+                if (((inter/union) > iouThreshold)) { // || (((box[1][3]-box[1][1]) * (box[1][2]-box[1][0]))-inter)<0.5 ) {
                     add = false;
                     break;
                 }
