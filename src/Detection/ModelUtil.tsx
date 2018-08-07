@@ -14,7 +14,7 @@ export interface IBox {
 }
 
 export interface IModelUtil {
-    detect:(model:tf.Model,imageData:tf.Tensor4D)=>Promise<any[]>,
+    detect:(model:tf.Model,imageData:tf.Tensor4D,classNo:number)=>Promise<any[]>,
 }
 
 const filterBoxes = (boxes,confs,probs,threshold,width,height) => {
@@ -44,12 +44,14 @@ const yoloPostProcess = (modelOutput,anchors,classNum) => {
     return [allB,allC,allP]
 }; 
 // const classNo:number = Config.classNo; 
-const classNo:number = 80
+// const classNo:number = 80
+// const classNo:number = Config.classNo; 
 const configs:IConfig[] = Config.configs; 
 
 const ModelUtil:IModelUtil[] = [ 
     {
-        detect: async (model:tf.Model,input:tf.Tensor4D) => {
+        detect: async (model:tf.Model,input:tf.Tensor4D,classNo:number) => {
+            console.log("before :", tf.memory())
             const width:number = input.shape[2]
             const height:number = input.shape[1]
             const config:IConfig = configs[0]
@@ -65,17 +67,17 @@ const ModelUtil:IModelUtil[] = [
     
             if (preB==null) {
                 tf.dispose([preB,preS,preC])
-                console.log("null")
+                // console.log("null")
                 return [[]]
             };
     
-            console.log("After Inference",preB.shape,preS.shape,preC.shape)
-            console.log(preB,preS,preC)
+            // console.log("After Inference",preB.shape,preS.shape,preC.shape)
+            // console.log(preB,preS,preC)
 
-            console.log(await preB.data());
+            // console.log(await preB.data());
     
             const results:Array<number[]|number[][]> = await ModelOutputUtil.nonMaxSuppression(preB,preS,preC,config.iouThreshold)
-            console.log("After NMS :", results[0].length, results)
+            // console.log("After NMS :", results[0].length, results)
     
             tf.dispose([preB,preS,preC])
             tf.disposeVariables();
@@ -84,7 +86,53 @@ const ModelUtil:IModelUtil[] = [
             return results;
         }
     },{
-        detect: async (model:tf.Model,input:tf.Tensor4D) => {
+        detect: async (model:tf.Model,input:tf.Tensor4D,classNo:number) => {
+            console.log("before :", tf.memory())
+            const width:number = input.shape[2]
+            const height:number = input.shape[1]
+            const config:IConfig = configs[1]
+            console.log("(width, height) : "+width+" , " +height+ " " + classNo);
+    
+            const modelOutput: tf.Tensor4D = model.predict(input) as tf.Tensor4D;
+            const [preB1,preS1,preC1]:tf.Tensor[] = tf.tidy(() => {
+                const anchors = config.anchors[0] as number[][];
+                const [allB,allC,allP] = yoloPostProcess(modelOutput[0], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(32.0,'float32')), classNo);
+                return filterBoxes(allB,allC,allP,0.01,width,height);
+            });
+            const [preB2,preS2,preC2]:tf.Tensor[] = tf.tidy(() => {
+                const anchors = config.anchors[1] as number[][];
+                const [allB,allC,allP] = yoloPostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(32.0,'float32')), classNo);
+                return filterBoxes(allB,allC,allP,0.01,width,height);
+            });
+
+            const preB = tf.concat([preB1,preB2]);
+            const preS = tf.concat([preS1,preS2]);
+            const preC = tf.concat([preC1,preC2]);
+            tf.dispose([input,preB1,preB2,preS1,preS2,preC1,preC2])
+    
+            if (preB==null) {
+                tf.dispose([preB,preS,preC])
+                // console.log("null")
+                return [[]]
+            };
+    
+            // console.log("After Inference",preB.shape,preS.shape,preC.shape)
+            // console.log(preB,preS,preC)
+
+            // console.log(await preB.data());
+    
+            const results:Array<number[]|number[][]> = await ModelOutputUtil.nonMaxSuppression(preB,preS,preC,config.iouThreshold)
+            // console.log("After NMS :", results[0].length, results)
+    
+            tf.dispose([preB,preS,preC])
+            tf.disposeVariables();
+            console.log("after :", tf.memory(),results)
+    
+            return results;
+        }
+    },{
+        detect: async (model:tf.Model,input:tf.Tensor4D,classNo:number) => {
+            console.log("before :", tf.memory())
             const width:number = input.shape[2]
             const height:number = input.shape[1]
             const config:IConfig = configs[1]
@@ -109,17 +157,17 @@ const ModelUtil:IModelUtil[] = [
     
             if (preB==null) {
                 tf.dispose([preB,preS,preC])
-                console.log("null")
+                // console.log("null")
                 return [[]]
             };
     
-            console.log("After Inference",preB.shape,preS.shape,preC.shape)
-            console.log(preB,preS,preC)
+            // console.log("After Inference",preB.shape,preS.shape,preC.shape)
+            // console.log(preB,preS,preC)
 
-            console.log(await preB.data());
+            // console.log(await preB.data());
     
             const results:Array<number[]|number[][]> = await ModelOutputUtil.nonMaxSuppression(preB,preS,preC,config.iouThreshold)
-            console.log("After NMS :", results[0].length, results)
+            // console.log("After NMS :", results[0].length, results)
     
             tf.dispose([preB,preS,preC])
             tf.disposeVariables();

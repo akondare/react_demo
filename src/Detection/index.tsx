@@ -34,8 +34,8 @@ export default class Detection extends React.Component<{}, IState>{
         enabled - whether or not each class detection is enabled
         colors - the colors used to view classes 
     */
-    protected classes: string[] = Classes; // .slice(0,Config.classNo);
-    protected colors: string[] = Classes.map(_ => (
+    protected classes: string[] = Classes[Config.version]; // .slice(0,Config.classNo);
+    protected colors: string[] = Classes[0].map(_ => (
         "rgb(" + Math.round(Math.random() * 255) + "," + Math.round(Math.random() * 255) + "," + Math.round(Math.random() * 255) + ")"
     ));
 
@@ -129,14 +129,14 @@ export default class Detection extends React.Component<{}, IState>{
 
         // set all booleans to false since nothing has occured yet and set empty canvas to size of (0,0)
         this.state = {
-            enabled: Classes.map(_ => true),
+            enabled: Classes[Config.version].map(_ => true),
             hasDetected: false,
             isDetecting: false,
             isFileLoaded: false,
             isModelLoaded: false,
             isRegionSelected: false,
             isSelectingRegion: false,
-            modelInd: -1,
+            modelInd: Config.version,
             size: {w:0,h:0},
         };
 
@@ -159,9 +159,12 @@ export default class Detection extends React.Component<{}, IState>{
     public async loadModel(i:number) {
         // tf.setBackend('cpu'); 
         // tf.ENV.set('DEBUG',true);
-        console.log(Config.configs,i)
-        this.model = await tf.loadModel(Config.configs[i].path);
-        this.setState({ modelInd:i,isModelLoaded: true });
+        // console.log(Config.configs,i)
+        const path:string = Config.configs[i].path;
+        console.log(path)
+        this.model = await tf.loadModel(path);
+        this.classes = Classes[i];
+        this.setState({ modelInd:i,isModelLoaded: true,enabled:Classes[i].map(_ => true) });
         console.log(this.state.modelInd,this.model);
     }
     public async disposeModel() {
@@ -199,7 +202,7 @@ export default class Detection extends React.Component<{}, IState>{
         // pass information, event handlers, and optionsEnabled array to Control component 
         const controlProps: any = {
             classSelected: this.state.enabled,
-            classStrings: this.classes.slice(0,Config.classNo),
+            classStrings: this.classes.slice(0,Config.configs[this.state.modelInd].numOfClasses),
             modelSelected,
             modelStrings: this.modelStrings,
             optionHandlers: this.optionHandlers,
@@ -393,7 +396,7 @@ export default class Detection extends React.Component<{}, IState>{
         const imageData: tf.Tensor4D = tf.tidy(() => this.getPixelData(x, y, w, h));
         const width:number = imageData.shape[2]
         const height:number = imageData.shape[1]
-        const preds:any =  await ModelUtil[this.state.modelInd].detect(this.model,imageData);
+        const preds:any =  await ModelUtil[this.state.modelInd].detect(this.model,imageData,Config.configs[this.state.modelInd].numOfClasses);
         console.log("preds : ",preds)
         imageData.dispose();
         const [boxes,scores,classes] = preds;
@@ -444,7 +447,6 @@ export default class Detection extends React.Component<{}, IState>{
         ctx.translate(-this.trans[0], -this.trans[1])
 
         DrawToCanvas.drawRect(this.zoneCanvas, this.selectedZone, "#000", 2);
-        console.log("draw",this.state.hasDetected,this.state.enabled,this.predictions)
         if (this.state.hasDetected === true) {
             this.state.enabled.forEach((e, i) => {
                 if (e) {

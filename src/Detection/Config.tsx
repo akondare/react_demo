@@ -1,7 +1,7 @@
 // import * as tf from '@tensorflow/tfjs'
 // import Classes from "./Classes"
 
-const version:number = 0; 
+const version:number = 1; 
 // const classNumber:number = Classes.length; 
 
 export interface IConfig {
@@ -11,17 +11,16 @@ export interface IConfig {
     probThreshold:number
     // classNumber:number,
     anchors:number[][] | number[][][],
+    numOfClasses:number
 }
 
 export interface IConfigs {
     version:number,
     modelNames:string[],
     configs:IConfig[]
-    classNo:number
 }
 
 const Config:IConfigs = {
-    classNo: 7,
     configs: [
         {
             anchors: [
@@ -31,8 +30,8 @@ const Config:IConfigs = {
                 [7.88282, 3.52778], 
                 [9.77052, 9.16828] 
             ],
-            // classNumber: 7,
             iouThreshold: 0.4,
+            numOfClasses: 80,
             path: 'https://raw.githubusercontent.com/SkalskiP/ILearnMachineLearning.js/master/models/tfjs-yolo-tiny/model.json', 
             probThreshold:0.4,
             size: {
@@ -49,9 +48,28 @@ const Config:IConfigs = {
                 [23,27],
                 [37,58],
             ]],
+            iouThreshold: 0.7,
+            numOfClasses: 80,
+            path: 'https://raw.githubusercontent.com/akondare/F18Model/master/model.json',
+            probThreshold: 0.3,
+            size:{
+                height:416,
+                width:416,
+            },
+        },{
+            anchors: [[
+                [81,82],
+                [135,169],
+                [344,319],
+            ], [
+                [10,14],
+                [23,27],
+                [37,58],
+            ]],
             // classNumber: 7,
             iouThreshold: 0.7,
-            path: 'https://raw.githubusercontent.com/akondare/F18Model/master/model.json',
+            numOfClasses: 1,
+            path: 'https://raw.githubusercontent.com/akondare/F18Model/f18/model.json',
             probThreshold: 0.3,
             size:{
                 height:416,
@@ -62,6 +80,7 @@ const Config:IConfigs = {
     modelNames: [
         "Yolo v2",
         "Yolo v3",
+        "F18 v3",
     ],
     version,
 } 
