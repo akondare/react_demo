@@ -161,11 +161,11 @@ export default class Detection extends React.Component<{}, IState>{
         // tf.ENV.set('DEBUG',true);
         // console.log(Config.configs,i)
         const path:string = Config.configs[i].path;
-        console.log(path)
+        // console.log(path)
         this.model = await tf.loadModel(path);
         this.classes = Classes[i];
         this.setState({ modelInd:i,isModelLoaded: true,enabled:Classes[i].map(_ => true) });
-        console.log(this.state.modelInd,this.model);
+        // console.log(this.state.modelInd,this.model);
     }
     public async disposeModel() {
         this.model = null;
@@ -267,7 +267,7 @@ export default class Detection extends React.Component<{}, IState>{
 
         // record position of canvas relative to client window
         const cRect:ClientRect = this.zoneCanvas.getBoundingClientRect();
-        this.canvasRect = [cRect.left, cRect.top]
+        this.canvasRect = [cRect.left, cRect.top,cRect.right-cRect.left,cRect.bottom-cRect.top]
 
         // delete memory of object url of original file as it has been loaded into the image element
         URL.revokeObjectURL(this.imageElement.src);
@@ -371,7 +371,7 @@ export default class Detection extends React.Component<{}, IState>{
         canvas.width = size.width;
         canvas.height = size.height;
         context.drawImage(this.imageElement,x,y,w,h,0,0,size.width,size.height)
-        console.log(context.getImageData(0,0,size.width,size.height));
+        // console.log(context.getImageData(0,0,size.width,size.height));
 
         return tf.fromPixels(context.getImageData(0,0,size.width,size.height))
                  .expandDims(0)
@@ -397,7 +397,6 @@ export default class Detection extends React.Component<{}, IState>{
         const width:number = imageData.shape[2]
         const height:number = imageData.shape[1]
         const preds:any =  await ModelUtil[this.state.modelInd].detect(this.model,imageData,Config.configs[this.state.modelInd].numOfClasses);
-        console.log("preds : ",preds)
         imageData.dispose();
         const [boxes,scores,classes] = preds;
         const probThres:number = Config.configs[this.state.modelInd].probThreshold; 
@@ -431,9 +430,9 @@ export default class Detection extends React.Component<{}, IState>{
             };
 
             results[classId].push(nextObject);
+            console.log("%s : (%d , %d, %d, %d)",this.classes[classId],x*this.origScale,y*this.origScale,w*this.origScale,h*this.origScale)
         });
 
-        console.log(results)
         return results;
     }
 
@@ -451,7 +450,6 @@ export default class Detection extends React.Component<{}, IState>{
             this.state.enabled.forEach((e, i) => {
                 if (e) {
                     this.predictions[i].forEach((prediction: IObject) => {
-                        console.log(prediction)
                         DrawToCanvas.drawPredictionRect(this.zoneCanvas, this.classes[i], prediction, 2, this.colors[i], 12);
                     })
                 }
@@ -477,6 +475,9 @@ export default class Detection extends React.Component<{}, IState>{
 
     protected onLeave(event: any) {
         if (this.state.isSelectingRegion) {
+            const endX: number = Math.min(this.canvasRect[2],(event.clientX - this.canvasRect[0]))
+            const endY: number = Math.min(this.canvasRect[3],(event.clientY - this.canvasRect[1]));
+            this.drawZone(endX, endY);
             this.finalizeZone();
         }
         event.target.removeEventListener('mousemove', this.mouseMove);

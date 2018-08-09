@@ -146,7 +146,7 @@ const ModelUtil:IModelUtil[] = [
             });
             const [preB2,preS2,preC2]:tf.Tensor[] = tf.tidy(() => {
                 const anchors = config.anchors[1] as number[][];
-                const [allB,allC,allP] = yoloPostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(32.0,'float32')), classNo);
+                const [allB,allC,allP] = yoloPostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(16.0,'float32')), classNo);
                 return filterBoxes(allB,allC,allP,0.01,width,height);
             });
 
