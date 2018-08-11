@@ -14,7 +14,7 @@ export interface IBox {
 }
 
 export interface IModelUtil {
-    detect:(model:tf.Model,imageData:tf.Tensor4D,classNo:number)=>Promise<any[]>,
+    detect:(model:any,imageData:tf.Tensor4D,classNo:number)=>Promise<any[]>,
 }
 
 const filterBoxes = (boxes,confs,probs,threshold,width,height) => {
@@ -50,7 +50,7 @@ const configs:IConfig[] = Config.configs;
 
 const ModelUtil:IModelUtil[] = [ 
     {
-        detect: async (model:tf.Model,input:tf.Tensor4D,classNo:number) => {
+        detect: async (model:tf.Model,input:any,classNo:number) => {
             console.log("before :", tf.memory())
             const width:number = input.shape[2]
             const height:number = input.shape[1]
@@ -58,7 +58,7 @@ const ModelUtil:IModelUtil[] = [
             console.log("(width, height) : "+width+" , " +height)
     
             const [preB,preS,preC]:tf.Tensor[] = tf.tidy(() => {
-                const modelOutput: tf.Tensor4D = model.predict(input) as tf.Tensor4D;
+                const modelOutput: any = model.predict(input);
                 const anchors = config.anchors as number[][];
                 const [allB,allC,allP] = yoloPostProcess(modelOutput, tf.tensor2d(anchors,[5,2],'float32'), classNo);
                 return filterBoxes(allB,allC,allP,0.01,width,height);
@@ -86,14 +86,14 @@ const ModelUtil:IModelUtil[] = [
             return results;
         }
     },{
-        detect: async (model:tf.Model,input:tf.Tensor4D,classNo:number) => {
+        detect: async (model:tf.Model,input:any,classNo:number) => {
             console.log("before :", tf.memory())
             const width:number = input.shape[2]
             const height:number = input.shape[1]
             const config:IConfig = configs[1]
             console.log("(width, height) : "+width+" , " +height+ " " + classNo);
     
-            const modelOutput: tf.Tensor4D = model.predict(input) as tf.Tensor4D;
+            const modelOutput: any = model.predict(input);
             const [preB1,preS1,preC1]:tf.Tensor[] = tf.tidy(() => {
                 const anchors = config.anchors[0] as number[][];
                 const [allB,allC,allP] = yoloPostProcess(modelOutput[0], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(32.0,'float32')), classNo);
@@ -131,14 +131,14 @@ const ModelUtil:IModelUtil[] = [
             return results;
         }
     },{
-        detect: async (model:tf.Model,input:tf.Tensor4D,classNo:number) => {
+        detect: async (model:tf.Model,input:any,classNo:number) => {
             console.log("before :", tf.memory())
             const width:number = input.shape[2]
             const height:number = input.shape[1]
             const config:IConfig = configs[1]
             console.log("(width, height) : "+width+" , " +height)
     
-            const modelOutput: tf.Tensor4D = model.predict(input) as tf.Tensor4D;
+            const modelOutput: any = model.predict(input);
             const [preB1,preS1,preC1]:tf.Tensor[] = tf.tidy(() => {
                 const anchors = config.anchors[0] as number[][];
                 const [allB,allC,allP] = yoloPostProcess(modelOutput[0], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(32.0,'float32')), classNo);
@@ -174,6 +174,24 @@ const ModelUtil:IModelUtil[] = [
             console.log("after :", tf.memory(),results)
     
             return results;
+        }
+    },{
+        detect: async (model:tf.FrozenModel,input:any,classNo:number) => {
+            console.log("before Frozen :", tf.memory())
+            const width:number = input.shape[2]
+            const height:number = input.shape[1]
+            console.log("(width, height) : "+width+" , " +height)
+    
+            const modelOutput:tf.Tensor[] = (await model.executeAsync(input)) as tf.Tensor[];
+            const [boxes,scores,classes,num] = await Promise.all([
+                modelOutput[0].data(),
+                modelOutput[1].data(),
+                modelOutput[2].data(),
+                modelOutput[3].data()
+            ])
+            modelOutput.forEach(e => e.dispose());
+            console.log(boxes,scores,classes,num);
+            return [[]]
         }
     }
 ]

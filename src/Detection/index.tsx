@@ -27,7 +27,7 @@ interface IState {
 export default class Detection extends React.Component<{}, IState>{
 
     protected modelStrings:string[] = Config.modelNames;
-    protected model: tf.Model = null;
+    protected model: (tf.Model|tf.FrozenModel) = null;
 
     /* class related structures (define classes of model in Classes.js)
         classes - strings of object classes
@@ -161,8 +161,15 @@ export default class Detection extends React.Component<{}, IState>{
         // tf.ENV.set('DEBUG',true);
         // console.log(Config.configs,i)
         const path:string = Config.configs[i].path;
-        // console.log(path)
-        this.model = await tf.loadModel(path);
+        const weightsPath:string = Config.configs[i].weights;
+        if( weightsPath != null) {
+            console.log('frozen')
+            this.model = await tf.loadFrozenModel(path,weightsPath);
+        }
+        else {
+            // console.log(path)
+            this.model = await tf.loadModel(path);
+        }
         this.classes = Classes[i];
         this.setState({ modelInd:i,isModelLoaded: true,enabled:Classes[i].map(_ => true) });
         // console.log(this.state.modelInd,this.model);

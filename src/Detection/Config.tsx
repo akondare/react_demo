@@ -1,11 +1,12 @@
 // import * as tf from '@tensorflow/tfjs'
 // import Classes from "./Classes"
 
-const version:number = 1; 
+const version:number = 3; 
 // const classNumber:number = Classes.length; 
 
 export interface IConfig {
     path:string,
+    weights?:string,
     size:{width:number,height:number},
     iouThreshold:number
     probThreshold:number
@@ -75,12 +76,32 @@ const Config:IConfigs = {
                 height:416,
                 width:416,
             },
-        },
+        },{
+            anchors: [[
+                [81,82],
+                [135,169],
+                [344,319],
+            ], [
+                [10,14],
+                [23,27],
+                [37,58],
+            ]],
+            iouThreshold: 0.7,
+            numOfClasses: 80,
+            path: 'https://raw.githubusercontent.com/akondare/F18Model/ssdm/tensorflowjs_model.pb',
+            probThreshold: 0.3,
+            size:{
+                height:416,
+                width:416,
+            },
+            weights: 'https://raw.githubusercontent.com/akondare/F18Model/ssdm/weights_manifest.json',
+        }
     ],
     modelNames: [
         "Yolo v2",
         "Yolo v3",
         "F18 v3",
+        "SSD-MobileNet",
     ],
     version,
 } 
