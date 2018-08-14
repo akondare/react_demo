@@ -52,35 +52,8 @@ export default class ModelOutputUtil {
      * @param anchorBoxes - anchor box widths and heights
      * @param numClasses - number of target classes
      */
-    public static yolo3Head(modelOutput, anchorBoxes, numClasses) {
+    public static yolo3Head(modelOutput, anchorBoxes, numClasses, width, height) {
 
-        const [first,second] = modelOutput
-        const [a1,a2] = anchorBoxes
-
-        const [ bP1, bS1, bC1, bCP1 ]:Tensor[] = ModelOutputUtil.yoloHead(first,a1,numClasses)
-        const [ bP2, bS2, bC2, bCP2 ] = ModelOutputUtil.yoloHead(second,a2,numClasses);
-
-        const boxConfidence = tf.concat([bC1,bC2]);
-        const boxPosition = tf.concat([bP1,bP2]);
-        const boxSize = tf.concat([bS1,bS2]);
-        const boxClassProbs = tf.concat([bCP1,bCP2]);
-
-
-        [bP1,bP2,bS1,bS2,bC1,bC2,bCP1,bCP2].forEach(t => t.dispose());
-
-
-        /*
-        modelOutput.forEach( (t:tf.Tensor4D,i) => {
-            const [ bP, bS, bC, bCP ] = ModelOutputUtil.yoloHead(t,anchorBoxes[i],numClasses);
-            boxPosition.push(bP);
-            boxSize.push(bS);
-            boxConfidence.push(bC);
-            boxClassProbs.push(bCP);
-        })
-        */
-
-        return [ boxPosition, boxSize, boxConfidence, boxClassProbs ];
-        /*
         const numberOfAnchorBoxes = anchorBoxes.shape[0]; 
         const anchorsTensor = tf.reshape(anchorBoxes, [1, 1, anchorBoxes.shape[0], anchorBoxes.shape[1]]);
 
@@ -100,21 +73,24 @@ export default class ModelOutputUtil {
         let convIndex = tf.transpose(tf.stack([gridIndexV, gridIndexH]));
         convIndex = tf.reshape(convIndex, [gridSize[0], gridSize[1], 1, 2])
         convIndex = tf.cast(convIndex, modelOutput.dtype);
-
-        modelOutput = tf.reshape(modelOutput, [gridSize[0], gridSize[1], numberOfAnchorBoxes, numClasses + numberOfAnchorBoxes]);
+      
+        modelOutput = tf.reshape(modelOutput, [gridSize[0], gridSize[1], numberOfAnchorBoxes, numClasses + 5]);
         gridSize = tf.cast(tf.reshape(tf.tensor1d(gridSize), [1,1,1,2]), modelOutput.dtype);
+        const inputSize:tf.Tensor4D = tf.cast(tf.tensor4d([height,width], [1,1,1,2]), modelOutput.dtype);
       
         let boxPosition = tf.sigmoid(modelOutput.slice([0,0,0,0], [gridSizeV, gridSizeH, numberOfAnchorBoxes, 2]))
         let boxSize = tf.exp(modelOutput.slice([0,0,0,2], [gridSizeV, gridSizeH, numberOfAnchorBoxes, 2]))
         const boxConfidence = tf.sigmoid(modelOutput.slice([0,0,0,4], [gridSizeV, gridSizeH, numberOfAnchorBoxes, 1]))
-        const boxClassProbs = tf.softmax(modelOutput.slice([0,0,0,5],[gridSizeV, gridSizeH, numberOfAnchorBoxes, numClasses]));
+
+        /* changed in yolo v3 */
+        // const boxClassProbs = tf.softmax(modelOutput.slice([0,0,0,5],[gridSizeV, gridSizeH, numberOfAnchorBoxes, numClasses]));
+        const boxClassProbs = tf.sigmoid(modelOutput.slice([0,0,0,5],[gridSizeV, gridSizeH, numberOfAnchorBoxes, numClasses]));
       
         // Adjust preditions to each spatial grid point and anchor size
         boxPosition = tf.div(tf.add(boxPosition, convIndex), gridSize);
-        boxSize = tf.div(tf.mul(boxSize, anchorsTensor), gridSize);
+        boxSize = tf.div(tf.mul(boxSize, anchorsTensor), inputSize);
       
         return [ boxPosition, boxSize, boxConfidence, boxClassProbs ];
-        */
     }
 
     /**
@@ -139,8 +115,25 @@ export default class ModelOutputUtil {
           boxMaxes.slice([0, 0, 0, 0], size),
         ], 3);
     }
+    public static boxesToCorners3(boxPosition, boxSize) {
+        const two = tf.scalar(2.0,'float32');
+        const boxMins = tf.sub(boxPosition, tf.div(boxSize, two));
+        const boxMaxes = tf.add(boxPosition, tf.div(boxSize, two));
+      
+        const dim0 = boxMins.shape[0];
+        const dim1 = boxMins.shape[1];
+        const dim2 = boxMins.shape[2];
+        const size = [dim0, dim1, dim2, 1];
+      
+        return tf.concat([
+          boxMins.slice([0, 0, 0, 1], size),
+          boxMins.slice([0, 0, 0, 0], size),
+          boxMaxes.slice([0, 0, 0, 1], size),
+          boxMaxes.slice([0, 0, 0, 0], size),
+        ], 3);
+    }
 
-    public static async nonMaxSuppression(boxesTensor:Tensor, scoresTensor:Tensor, classesTensor:Tensor,iouThreshold:number) {
+    public static async nonMaxSuppression(boxesTensor:Tensor, scoresTensor:Tensor, classesTensor:Tensor,iouThreshold:number,scoresThres:number) {
         console.log(boxesTensor.shape,scoresTensor,classesTensor,iouThreshold);
         const [boxes,scores]:Array<Float32Array|Int32Array|Uint8Array> = await Promise.all([
             boxesTensor.data(),
@@ -160,7 +153,8 @@ export default class ModelOutputUtil {
       
         // Greedily go through boxes in descending score order and only
         // return boxes that are below the IoU threshold.
-        sortedBoxes.forEach(box => {
+        for( const box of sortedBoxes) {
+            if(box[0] < scoresThres ) { break };
             let add = true;
             for( const sel of selectedBoxes) {
                 const inter = ModelOutputUtil.boxIntersection(box[1],sel[1])
@@ -175,7 +169,7 @@ export default class ModelOutputUtil {
             if (add) {
                 selectedBoxes.push(box);
             }
-        });
+        };
 
         console.log("selectedboxes", selectedBoxes);
 

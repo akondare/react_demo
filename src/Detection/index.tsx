@@ -96,6 +96,7 @@ export default class Detection extends React.Component<{}, IState>{
             this.loadModel(i);
         },
         function openFile(e: any) {
+            if( e.target.files[0] == null ) {return};
             const fileURL: string = URL.createObjectURL(e.target.files[0]);
             this.imageElement.src = fileURL;
             this.setState({ isSelectingRegion: false, isRegionSelected: false });
@@ -157,7 +158,7 @@ export default class Detection extends React.Component<{}, IState>{
 
     // loads model from Config.ModelPath asynchronously
     public async loadModel(i:number) {
-        // tf.setBackend('cpu'); 
+        tf.setBackend('cpu'); 
         // tf.ENV.set('DEBUG',true);
         // console.log(Config.configs,i)
         const path:string = Config.configs[i].path;
@@ -365,16 +366,22 @@ export default class Detection extends React.Component<{}, IState>{
     }
 
     protected getPixelData(x, y, w, h):tf.Tensor4D {
+        console.log("REGION :  ",x,y,w,h)
         const canvas: HTMLCanvasElement = document.createElement('canvas');
         const context: CanvasRenderingContext2D = canvas.getContext('2d');
             
         const size = Config.configs[this.state.modelInd].size;
 
-        if(size.width === null || size.height === null) {
-            size.width = w;
-            size.height = h;
+        if( false ) {
+            size.width = w-(w%32);
+            size.height = h-(h%32);
         }
-            
+
+        if(size.width == null || size.height == null) {
+            size.width = 416
+            size.height = 416
+        }
+
         canvas.width = size.width;
         canvas.height = size.height;
         context.drawImage(this.imageElement,x,y,w,h,0,0,size.width,size.height)
@@ -382,13 +389,9 @@ export default class Detection extends React.Component<{}, IState>{
 
         return tf.fromPixels(context.getImageData(0,0,size.width,size.height))
                  .expandDims(0)
-                 .toFloat()
-                 .div(tf.scalar(255));
+                 // .toFloat()
+                 // .div(tf.scalar(255));
 
-        /* TODO add padding support
-        const nw = w-(w%32)
-        const nh = h-(h%32)
-        */
     }
 
     protected async predict(zone: Rect) {

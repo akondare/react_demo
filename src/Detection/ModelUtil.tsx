@@ -40,6 +40,11 @@ const filterBoxes = (boxes,confs,probs,threshold,width,height) => {
 
 const yoloPostProcess = (modelOutput,anchors,classNum) => {
     const [boxXY, boxWH, allC, allP] = ModelOutputUtil.yoloHead(modelOutput, anchors, classNum);
+    const allB = ModelOutputUtil.boxesToCorners3(boxXY, boxWH);
+    return [allB,allC,allP]
+}; 
+const yolo3PostProcess = (modelOutput,anchors,classNum,width,height) => {
+    const [boxXY, boxWH, allC, allP] = ModelOutputUtil.yolo3Head(modelOutput, anchors, classNum,width,height);
     const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
     return [allB,allC,allP]
 }; 
@@ -76,7 +81,7 @@ const ModelUtil:IModelUtil[] = [
 
             // console.log(await preB.data());
     
-            const results:Array<number[]|number[][]> = await ModelOutputUtil.nonMaxSuppression(preB,preS,preC,config.iouThreshold)
+            const results:Array<number[]|number[][]> = await ModelOutputUtil.nonMaxSuppression(preB,preS,preC,config.iouThreshold,config.probThreshold)
             // console.log("After NMS :", results[0].length, results)
     
             tf.dispose([preB,preS,preC])
@@ -96,12 +101,12 @@ const ModelUtil:IModelUtil[] = [
             const modelOutput: any = model.predict(input);
             const [preB1,preS1,preC1]:tf.Tensor[] = tf.tidy(() => {
                 const anchors = config.anchors[0] as number[][];
-                const [allB,allC,allP] = yoloPostProcess(modelOutput[0], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(32.0,'float32')), classNo);
+                const [allB,allC,allP] = yolo3PostProcess(modelOutput[0], tf.tensor2d(anchors,[3,2],'float32'), classNo,width,height);
                 return filterBoxes(allB,allC,allP,0.01,width,height);
             });
             const [preB2,preS2,preC2]:tf.Tensor[] = tf.tidy(() => {
                 const anchors = config.anchors[1] as number[][];
-                const [allB,allC,allP] = yoloPostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(32.0,'float32')), classNo);
+                const [allB,allC,allP] = yolo3PostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32'), classNo,width,height);
                 return filterBoxes(allB,allC,allP,0.01,width,height);
             });
 
@@ -121,7 +126,7 @@ const ModelUtil:IModelUtil[] = [
 
             // console.log(await preB.data());
     
-            const results:Array<number[]|number[][]> = await ModelOutputUtil.nonMaxSuppression(preB,preS,preC,config.iouThreshold)
+            const results:Array<number[]|number[][]> = await ModelOutputUtil.nonMaxSuppression(preB,preS,preC,config.iouThreshold,config.probThreshold)
             // console.log("After NMS :", results[0].length, results)
     
             tf.dispose([preB,preS,preC])
@@ -141,12 +146,14 @@ const ModelUtil:IModelUtil[] = [
             const modelOutput: any = model.predict(input);
             const [preB1,preS1,preC1]:tf.Tensor[] = tf.tidy(() => {
                 const anchors = config.anchors[0] as number[][];
-                const [allB,allC,allP] = yoloPostProcess(modelOutput[0], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(32.0,'float32')), classNo);
+                const [allB,allC,allP] = yolo3PostProcess(modelOutput[0], tf.tensor2d(anchors,[3,2],'float32'), classNo,width,height);
+                // const [allB,allC,allP] = yoloPostProcess(modelOutput[0], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(32.0)), classNo);
                 return filterBoxes(allB,allC,allP,0.01,width,height);
             });
             const [preB2,preS2,preC2]:tf.Tensor[] = tf.tidy(() => {
                 const anchors = config.anchors[1] as number[][];
-                const [allB,allC,allP] = yoloPostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(16.0,'float32')), classNo);
+                const [allB,allC,allP] = yolo3PostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32'), classNo,width,height);
+                // const [allB,allC,allP] = yoloPostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32').div(tf.scalar(32.0)), classNo);
                 return filterBoxes(allB,allC,allP,0.01,width,height);
             });
 
@@ -166,7 +173,7 @@ const ModelUtil:IModelUtil[] = [
 
             // console.log(await preB.data());
     
-            const results:Array<number[]|number[][]> = await ModelOutputUtil.nonMaxSuppression(preB,preS,preC,config.iouThreshold)
+            const results:Array<number[]|number[][]> = await ModelOutputUtil.nonMaxSuppression(preB,preS,preC,config.iouThreshold,config.probThreshold)
             // console.log("After NMS :", results[0].length, results)
     
             tf.dispose([preB,preS,preC])
@@ -178,20 +185,28 @@ const ModelUtil:IModelUtil[] = [
     },{
         detect: async (model:tf.FrozenModel,input:any,classNo:number) => {
             console.log("before Frozen :", tf.memory())
+            console.log(input.shape,input.dtype,await input.data())
             const width:number = input.shape[2]
             const height:number = input.shape[1]
             console.log("(width, height) : "+width+" , " +height)
     
             const modelOutput:tf.Tensor[] = (await model.executeAsync(input)) as tf.Tensor[];
-            const [boxes,scores,classes,num] = await Promise.all([
-                modelOutput[0].data(),
-                modelOutput[1].data(),
-                modelOutput[2].data(),
-                modelOutput[3].data()
-            ])
+            const num:number = (await modelOutput[3].data())[0];
+            console.log(num)
+            const [boxes,scores,classes]:Float32Array[] = await Promise.all([
+                modelOutput[0].squeeze().slice(0,num).mul(tf.scalar(416)).data(),
+                modelOutput[1].squeeze().slice(0,num).data(),
+                modelOutput[2].squeeze().slice(0,num).sub(tf.scalar(2)).data(),
+            ]) as Float32Array[];
             modelOutput.forEach(e => e.dispose());
             console.log(boxes,scores,classes,num);
-            return [[]]
+
+            const newboxes:Float32Array[] = [];
+            for(let i = 0; i < boxes.length; i+=4) {
+                newboxes.push(boxes.slice(i,i+4));
+            }
+            console.log(newboxes)
+            return [newboxes,scores,classes]
         }
     }
 ]

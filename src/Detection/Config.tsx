@@ -49,10 +49,10 @@ const Config:IConfigs = {
                 [23,27],
                 [37,58],
             ]],
-            iouThreshold: 0.7,
+            iouThreshold: 0.5,
             numOfClasses: 80,
             path: 'https://raw.githubusercontent.com/akondare/F18Model/master/model.json',
-            probThreshold: 0.3,
+            probThreshold: 0.6,
             size:{
                 height:416,
                 width:416,
@@ -68,14 +68,20 @@ const Config:IConfigs = {
                 [37,58],
             ]],
             // classNumber: 7,
-            iouThreshold: 0.7,
+            iouThreshold: 0.5,
             numOfClasses: 1,
             path: 'https://raw.githubusercontent.com/akondare/F18Model/f18/model.json',
-            probThreshold: 0.3,
+            probThreshold: 0.6,
+            size:{
+                height:null,
+                width:null,
+            },
+            /*
             size:{
                 height:416,
                 width:416,
             },
+            */
         },{
             anchors: [[
                 [81,82],
@@ -89,7 +95,7 @@ const Config:IConfigs = {
             iouThreshold: 0.7,
             numOfClasses: 80,
             path: 'https://raw.githubusercontent.com/akondare/F18Model/ssdm/tensorflowjs_model.pb',
-            probThreshold: 0.3,
+            probThreshold: 0.5,
             size:{
                 height:416,
                 width:416,
