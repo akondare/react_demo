@@ -1,4 +1,4 @@
-import IObject from "./IObject";
+import IDetection from "./IDetection";
 import {IPoint} from "./Point";
 import {IRect} from "./Rect";
 
@@ -23,7 +23,7 @@ export default class DrawToCanvas {
 
         // draw rectangle and restore context
         ctx.beginPath();
-        ctx.rect(rect.x, rect.y, rect.w, rect.h);
+        ctx.rect(rect.left, rect.top, rect.width, rect.height);
         ctx.stroke();
         ctx.restore();
     }
@@ -44,23 +44,23 @@ export default class DrawToCanvas {
         ctx.restore();
     }
 
-    public static drawPredictionRect(canvas:HTMLCanvasElement, classString:string, prediction:IObject, thickness:number = 1, color:string = "#fff", textSize:number = 10): void {
-        DrawToCanvas.drawRect(canvas, prediction.rect, color, thickness);
+    public static drawPredictionRect(canvas:HTMLCanvasElement, classString:string, prediction:IDetection, thickness:number = 1, color:string = "#fff", textSize:number = 10): void {
+        DrawToCanvas.drawRect(canvas, prediction.box, color, thickness);
 
         const ctx:CanvasRenderingContext2D = canvas.getContext('2d');
         ctx.save();
 
         ctx.font = "bold " + textSize + "px Titillium Web";
-        const txt = classString + " " + prediction.probability.toFixed(2);
+        const txt = classString + " " + prediction.score.toFixed(2);
         const padding = 2;
         const width = ctx.measureText(txt).width; 
         ctx.fillStyle = color;
         ctx.textAlign = "start";
         ctx.textBaseline = "top";
 
-        ctx.fillRect(prediction.rect.x, prediction.rect.y, width + padding * 2, textSize + padding * 2);
+        ctx.fillRect(prediction.box.left, prediction.box.top, width + padding * 2, textSize + padding * 2);
         ctx.fillStyle = "#fff";
-        ctx.fillText(txt, prediction.rect.x + padding, prediction.rect.y);
+        ctx.fillText(txt, prediction.box.left + padding, prediction.box.top);
 
         ctx.restore();
     }

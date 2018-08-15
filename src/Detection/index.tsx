@@ -3,9 +3,9 @@ import * as React from "react";
 import Classes from "./Classes"
 import Config from "./Config"
 import Control from "./Control"
-import ModelUtil from "./ModelUtil"
+import DetectUtil from "./DetectUtil"
 import DrawToCanvas from "./Utils/DrawToCanvas";
-import IObject from "./Utils/IObject"
+import IDetection from "./Utils/IDetection"
 import { Rect } from "./Utils/Rect"
 
 interface ISize {
@@ -66,7 +66,7 @@ export default class Detection extends React.Component<{}, IState>{
         predictions - holds list of bounding boxes (x,y,w,h) per class  
     */
     protected selectedZone: Rect;
-    protected predictions: IObject[][];
+    protected predictions: IDetection[][];
 
     protected maxDim = 800;
 
@@ -357,10 +357,10 @@ export default class Detection extends React.Component<{}, IState>{
             h = -h;
         }
 
-        this.selectedZone.x = this.trans[0] + (x * this.scale)
-        this.selectedZone.y = this.trans[1] + (y * this.scale)
-        this.selectedZone.w = (w * this.scale)
-        this.selectedZone.h = (h * this.scale)
+        this.selectedZone.left = this.trans[0] + (x * this.scale)
+        this.selectedZone.top = this.trans[1] + (y * this.scale)
+        this.selectedZone.width = (w * this.scale)
+        this.selectedZone.height = (h * this.scale)
 
         this.setState({ isSelectingRegion: false, isRegionSelected: true, hasDetected: false });
     }
@@ -372,14 +372,15 @@ export default class Detection extends React.Component<{}, IState>{
             
         const size = Config.configs[this.state.modelInd].size;
 
-        if( false ) {
-            size.width = w-(w%32);
-            size.height = h-(h%32);
-        }
 
         if(size.width == null || size.height == null) {
-            size.width = 416
-            size.height = 416
+            if( false ) {
+                size.width = w-(w%32);
+                size.height = h-(h%32);
+            } else {
+                size.width = w;
+                size.height = h;
+            }
         }
 
         canvas.width = size.width;
@@ -397,50 +398,55 @@ export default class Detection extends React.Component<{}, IState>{
     protected async predict(zone: Rect) {
 
         const [x,y,w,h] = [
-            Math.floor(zone.x * this.origScale),
-            Math.floor(zone.y * this.origScale),
-            Math.ceil(zone.w * this.origScale),
-            Math.ceil(zone.h * this.origScale),
+            Math.floor(zone.left * this.origScale),
+            Math.floor(zone.top * this.origScale),
+            Math.ceil(zone.width * this.origScale),
+            Math.ceil(zone.height * this.origScale),
         ];
+        // const newZone:Rect = new Rect(x,y,w,h)
 
         const imageData: tf.Tensor4D = tf.tidy(() => this.getPixelData(x, y, w, h));
         const width:number = imageData.shape[2]
         const height:number = imageData.shape[1]
-        const preds:any =  await ModelUtil[this.state.modelInd].detect(this.model,imageData,Config.configs[this.state.modelInd].numOfClasses);
+        const config = Config.configs[this.state.modelInd]
+        const preds:IDetection[] =  await DetectUtil[config.type](this.model,imageData,config);
         imageData.dispose();
-        const [boxes,scores,classes] = preds;
-        const probThres:number = Config.configs[this.state.modelInd].probThreshold; 
-        return this.getFinalPreds(boxes,scores,classes,probThres,zone,width,height);
+        return this.getFinalPreds(
+            preds,
+            Config.configs[this.state.modelInd].probThreshold,
+            zone,
+            width,
+            height
+        );
     }
-    protected getFinalPreds(boxes,scores,classes,probThres,zone,width,height) {
-        const ratioX = zone.w / width;
-        const ratioY = zone.h / height;
-        const results:IObject[][] = Array<IObject[]>(this.classes.length); 
+    protected getFinalPreds(preds:IDetection[],probThres:number,zone:Rect,width:number,height:number) {
+        const ratioX = zone.width / width;
+        const ratioY = zone.height / height;
+        const results:IDetection[][] = Array<IDetection[]>(this.classes.length); 
         for(let i=0; i<results.length;i++) { results[i] = [] }
-
-        // for(let i = 0; i<boxes.length;i++) {
-        boxes.forEach((b,i) => {
-            const [top,left,bottom,right] = b
-            const prob = scores[i];
-            const classId = classes[i];
+        preds.forEach(p => {
+            const [top,left,bottom,right] = p.box.getDetails();
+            const prob = p.score;
+            const classId = p.class;
 
             if (prob < probThres) {
                 return
             }
 
-            const x = Math.max(0, left) * ratioX;
-            const y = Math.max(0, top) * ratioY;
-            const w = Math.min(width, right * ratioX) - x;
-            const h = Math.min(height, bottom * ratioY) - y;
+            const leftOffset = Math.max(0, left) * ratioX;
+            const topOffset = Math.max(0, top) * ratioY;
+            const w = Math.min(width, right * ratioX) - leftOffset;
+            const h = Math.min(height, bottom * ratioY) - topOffset;
 
-            const nextObject: IObject = {
-                classID: classId,
-                probability: prob,
-                rect: new Rect(x+zone.x, y+zone.y, w, h)
+            const nextObject:IDetection = {
+                box: new Rect(leftOffset+zone.left, topOffset+zone.top, w, h),
+                class: classId,
+                score: prob,
             };
 
             results[classId].push(nextObject);
-            console.log("%s : (%d , %d, %d, %d)",this.classes[classId],x*this.origScale,y*this.origScale,w*this.origScale,h*this.origScale)
+
+            console.log(this.classes[nextObject.class],nextObject.score,nextObject.box.scale(this.origScale))
         });
 
         return results;
@@ -459,7 +465,7 @@ export default class Detection extends React.Component<{}, IState>{
         if (this.state.hasDetected === true) {
             this.state.enabled.forEach((e, i) => {
                 if (e) {
-                    this.predictions[i].forEach((prediction: IObject) => {
+                    this.predictions[i].forEach((prediction: IDetection) => {
                         DrawToCanvas.drawPredictionRect(this.zoneCanvas, this.classes[i], prediction, 2, this.colors[i], 12);
                     })
                 }

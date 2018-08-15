@@ -1,10 +1,17 @@
 // import * as tf from '@tensorflow/tfjs'
 // import Classes from "./Classes"
 
-const version:number = 3; 
+const version:number = 1; 
 // const classNumber:number = Classes.length; 
 
+export enum ModelType {
+    SSD='ssd',
+    YOLO2='yolo2',
+    YOLO3='yolo3',
+}
+
 export interface IConfig {
+    type:ModelType,
     path:string,
     weights?:string,
     size:{width:number,height:number},
@@ -39,6 +46,7 @@ const Config:IConfigs = {
                 height:416,
                 width:416,
             },
+            type:ModelType.YOLO2,
         },{
             anchors: [[
                 [81,82],
@@ -57,6 +65,7 @@ const Config:IConfigs = {
                 height:416,
                 width:416,
             },
+            type:ModelType.YOLO3,
         },{
             anchors: [[
                 [81,82],
@@ -73,9 +82,10 @@ const Config:IConfigs = {
             path: 'https://raw.githubusercontent.com/akondare/F18Model/f18/model.json',
             probThreshold: 0.6,
             size:{
-                height:null,
-                width:null,
+                height:416,
+                width:416,
             },
+            type:ModelType.YOLO3,
             /*
             size:{
                 height:416,
@@ -95,11 +105,12 @@ const Config:IConfigs = {
             iouThreshold: 0.7,
             numOfClasses: 80,
             path: 'https://raw.githubusercontent.com/akondare/F18Model/ssdm/tensorflowjs_model.pb',
-            probThreshold: 0.5,
+            probThreshold: 0.6,
             size:{
-                height:416,
-                width:416,
+                height:null,
+                width:null,
             },
+            type:ModelType.SSD,
             weights: 'https://raw.githubusercontent.com/akondare/F18Model/ssdm/weights_manifest.json',
         }
     ],
