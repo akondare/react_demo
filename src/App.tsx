@@ -9,3 +9,12 @@ export default function () {
     </div>
   );
 };
+// import DropdownMenu,{DropdownMenuProps} from '@cgsweb/core/components/DropdownMenu/DropdownMenu'
+  /*
+  const props:DropdownMenuProps = {
+    id: "string",
+    openOnHover: true,
+    title: <button/>,
+  } 
+  */
+      // <DropdownMenu {...props}><li>pizza</li><li>tomatoes</li></DropdownMenu>

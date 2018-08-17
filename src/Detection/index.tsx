@@ -6,7 +6,7 @@ import Control from "./Control"
 import DetectUtil from "./DetectUtil"
 import DrawToCanvas from "./Utils/DrawToCanvas";
 import IDetection from "./Utils/IDetection"
-import { Rect } from "./Utils/Rect"
+import Rect from "./Utils/Rect"
 
 interface ISize {
     w: number,
@@ -27,7 +27,7 @@ interface IState {
 export default class Detection extends React.Component<{}, IState>{
 
     protected modelStrings:string[] = Config.modelNames;
-    protected model: (tf.Model|tf.FrozenModel) = null;
+    protected model: (tf.Model|tf.FrozenModel|null) = null;
 
     /* class related structures (define classes of model in Classes.js)
         classes - strings of object classes
@@ -46,7 +46,7 @@ export default class Detection extends React.Component<{}, IState>{
     */
     protected trans: number[] = [0, 0];
     protected scale: number = 1;
-    protected origScale: number = null;
+    protected origScale: number|null = null;
 
     /* state of canvas
         imageElement - current image file loaded
@@ -158,14 +158,13 @@ export default class Detection extends React.Component<{}, IState>{
 
     // loads model from Config.ModelPath asynchronously
     public async loadModel(i:number) {
-        tf.setBackend('cpu'); 
-        // tf.ENV.set('DEBUG',true);
-        // console.log(Config.configs,i)
+        // tf.setBackend('gpu')
         const path:string = Config.configs[i].path;
-        const weightsPath:string = Config.configs[i].weights;
-        if( weightsPath != null) {
-            console.log('frozen')
+        const weightsPath:string|undefined = Config.configs[i].weights;
+        // const preload = tf.zeros([1,4,4,3])
+        if( weightsPath !== undefined) {
             this.model = await tf.loadFrozenModel(path,weightsPath);
+            // (this.model as tf.FrozenModel).executeAsync(preload).then(() => {tf.dispose(preload)})
         }
         else {
             // console.log(path)
@@ -225,8 +224,8 @@ export default class Detection extends React.Component<{}, IState>{
                     <Control {...controlProps} />
                 </header>
                 <div className="Canvases" style={{ height: this.state.size.h, width: this.state.size.w }}>
-                    <canvas className="ImageCanvas" ref={ref => this.imageCanvas = ref} />
-                    <canvas className="ZoneCanvas" ref={ref => this.zoneCanvas = ref} onMouseDown={this.mouseDown} onWheel={this.handleScroll} />
+                    <canvas className="ImageCanvas" ref={ref => this.imageCanvas = ref as HTMLCanvasElement} />
+                    <canvas className="ZoneCanvas" ref={ref => this.zoneCanvas = ref as HTMLCanvasElement} onMouseDown={this.mouseDown} onWheel={this.handleScroll} />
                 </div>
             </div>
         );
@@ -271,7 +270,8 @@ export default class Detection extends React.Component<{}, IState>{
         this.zoneCanvas.width = canvasW;
         this.zoneCanvas.height = canvasH;
         this.setState({size:{w:canvasW, h:canvasH}});
-        this.imageCanvas.getContext('2d').drawImage(this.imageElement, 0, 0, canvasW, canvasH);
+        const ctx:CanvasRenderingContext2D = this.imageCanvas.getContext('2d') as CanvasRenderingContext2D
+        ctx.drawImage(this.imageElement, 0, 0, canvasW, canvasH);
 
         // record position of canvas relative to client window
         const cRect:ClientRect = this.zoneCanvas.getBoundingClientRect();
@@ -322,12 +322,12 @@ export default class Detection extends React.Component<{}, IState>{
     }
 
 
-    protected setTrans(x, y, factor) {
+    protected setTrans(x: number, y: number, factor: number) {
         this.trans[0] = Math.max(0, Math.min(this.imageCanvas.width * (1 - this.scale), this.trans[0] + (x * factor)));
         this.trans[1] = Math.max(0, Math.min(this.imageCanvas.height * (1 - this.scale), this.trans[1] + (y * factor)));
         DrawToCanvas.clearCanvas(this.imageCanvas);
         // DrawToCanvas.clearCanvas(this.zoneCanvas);
-        const ctx: CanvasRenderingContext2D = this.imageCanvas.getContext('2d');
+        const ctx: CanvasRenderingContext2D = this.imageCanvas.getContext('2d') as CanvasRenderingContext2D;
         ctx.save();
         ctx.scale(1 / this.scale, 1 / this.scale)
         ctx.translate(-this.trans[0], -this.trans[1])
@@ -335,7 +335,7 @@ export default class Detection extends React.Component<{}, IState>{
         ctx.restore();
         this.drawPredsToZone();
     }
-    protected translate(dx, dy) {
+    protected translate(dx: number, dy: number) {
         if (dx === 0 && dy === 0) { return };
         this.setTrans(-dx, -dy, this.scale)
     }
@@ -365,14 +365,8 @@ export default class Detection extends React.Component<{}, IState>{
         this.setState({ isSelectingRegion: false, isRegionSelected: true, hasDetected: false });
     }
 
-    protected getPixelData(x, y, w, h):tf.Tensor4D {
-        console.log("REGION :  ",x,y,w,h)
-        const canvas: HTMLCanvasElement = document.createElement('canvas');
-        const context: CanvasRenderingContext2D = canvas.getContext('2d');
-            
+    protected getPixelData(x: number, y: number, w: number, h: number):tf.Tensor4D {
         const size = Config.configs[this.state.modelInd].size;
-
-
         if(size.width == null || size.height == null) {
             if( false ) {
                 size.width = w-(w%32);
@@ -383,25 +377,24 @@ export default class Detection extends React.Component<{}, IState>{
             }
         }
 
+        const canvas: HTMLCanvasElement = document.createElement('canvas');
+        const context: CanvasRenderingContext2D = canvas.getContext('2d') as CanvasRenderingContext2D;
         canvas.width = size.width;
         canvas.height = size.height;
         context.drawImage(this.imageElement,x,y,w,h,0,0,size.width,size.height)
-        // console.log(context.getImageData(0,0,size.width,size.height));
-
-        return tf.fromPixels(context.getImageData(0,0,size.width,size.height))
-                 .expandDims(0)
-                 // .toFloat()
-                 // .div(tf.scalar(255));
-
+        console.log("IMAGE SIZE :",size.width,size.height)
+        const input:tf.Tensor4D = tf.fromPixels(context.getImageData(0,0,size.width,size.height)).expandDims(0) as tf.Tensor4D
+        console.log("INPUT SIZE :",input.shape[2],input.shape[1])
+        return input
     }
 
-    protected async predict(zone: Rect) {
+    protected async predict(zone: Rect,scale: number) {
 
         const [x,y,w,h] = [
-            Math.floor(zone.left * this.origScale),
-            Math.floor(zone.top * this.origScale),
-            Math.ceil(zone.width * this.origScale),
-            Math.ceil(zone.height * this.origScale),
+            Math.floor(zone.left * scale),
+            Math.floor(zone.top * scale),
+            Math.ceil(zone.width * scale),
+            Math.ceil(zone.height * scale),
         ];
         // const newZone:Rect = new Rect(x,y,w,h)
 
@@ -446,7 +439,7 @@ export default class Detection extends React.Component<{}, IState>{
 
             results[classId].push(nextObject);
 
-            console.log(this.classes[nextObject.class],nextObject.score,nextObject.box.scale(this.origScale))
+            console.log(this.classes[nextObject.class],nextObject.score,nextObject.box.scale(this.origScale as number))
         });
 
         return results;
@@ -455,7 +448,7 @@ export default class Detection extends React.Component<{}, IState>{
     protected drawPredsToZone() {
         if (this.state.isRegionSelected === false) { return }
         DrawToCanvas.clearCanvas(this.zoneCanvas);
-        const ctx: CanvasRenderingContext2D = this.zoneCanvas.getContext('2d');
+        const ctx: CanvasRenderingContext2D = this.zoneCanvas.getContext('2d') as CanvasRenderingContext2D;
         ctx.save();
 
         ctx.scale(1 / this.scale, 1 / this.scale)
@@ -480,7 +473,7 @@ export default class Detection extends React.Component<{}, IState>{
         this.forceUpdate();
 
         if (!this.state.hasDetected) {
-            this.predictions = await this.predict(this.selectedZone);
+            this.predictions = await this.predict(this.selectedZone,this.origScale as number);
             this.setState({ hasDetected: true })
         }
 

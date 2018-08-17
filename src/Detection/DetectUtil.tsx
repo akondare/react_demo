@@ -2,7 +2,7 @@ import * as tf from '@tensorflow/tfjs';
 import {IConfig} from './Config';
 import IDetection from './Utils/IDetection';
 import ModelOutputUtil from './Utils/ModelOutputUtil';
-import { Rect } from './Utils/Rect';
+import Rect from './Utils/Rect';
 
 export interface IBox {
     x: number,
@@ -16,7 +16,7 @@ export interface IDetectUtil {
     [model: string]: (model:any,imageData:tf.Tensor4D,config:IConfig)=>Promise<IDetection[]>
 }
 
-const filterBoxes = (boxes,confs,probs,threshold,width,height) => {
+const filterBoxes = (boxes: tf.Tensor, confs: tf.Tensor, probs: tf.Tensor, threshold: number, width: number,height: number) => {
     const boxScores = tf.mul(confs, probs);
     const boxClasses = tf.argMax(boxScores, -1);
     const boxClassScores = tf.max(boxScores, -1);
@@ -37,13 +37,13 @@ const filterBoxes = (boxes,confs,probs,threshold,width,height) => {
     ];
 };
 
-const yoloPostProcess = (modelOutput,anchors,classNum) => {
+const yoloPostProcess = (modelOutput: tf.Tensor, anchors: tf.Tensor2D, classNum: number) => {
     const [boxXY, boxWH, allC, allP] = ModelOutputUtil.yoloHead(modelOutput, anchors, classNum);
-    const allB = ModelOutputUtil.boxesToCorners3(boxXY, boxWH);
+    const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
     return [allB,allC,allP]
 }; 
-const yolo3PostProcess = (modelOutput,anchors,classNum,width,height) => {
-    const [boxXY, boxWH, allC, allP] = ModelOutputUtil.yolo3Head(modelOutput, anchors, classNum,width,height);
+const yolo3PostProcess = (modelOutput: tf.Tensor, anchors: tf.Tensor2D, classNum: number, scale: number) => {
+    const [boxXY, boxWH, allC, allP] = ModelOutputUtil.yoloHead(modelOutput, anchors, classNum, scale);
     const allB = ModelOutputUtil.boxesToCorners(boxXY, boxWH);
     return [allB,allC,allP]
 }; 
@@ -126,14 +126,16 @@ const DetectUtil:IDetectUtil = {
             console.log(width,height)
     
             const modelOutput: any = tf.tidy(()=>model.predict(input.toFloat().div(tf.scalar(255))));
+
             const [preB1,preS1,preC1]:tf.Tensor[] = tf.tidy(() => {
                 const anchors = config.anchors[0] as number[][];
-                const [allB,allC,allP] = yolo3PostProcess(modelOutput[0], tf.tensor2d(anchors,[3,2],'float32'), config.numOfClasses,width,height);
+                const [allB,allC,allP] = yolo3PostProcess(modelOutput[0], tf.tensor2d(anchors,[3,2],'float32'), config.numOfClasses,32);
                 return filterBoxes(allB,allC,allP,0.01,width,height);
             });
             const [preB2,preS2,preC2]:tf.Tensor[] = tf.tidy(() => {
                 const anchors = config.anchors[1] as number[][];
-                const [allB,allC,allP] = yolo3PostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32'), config.numOfClasses,width,height);
+                // const [allB,allC,allP] = yolo3PostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32'), config.numOfClasses,width,height);
+                const [allB,allC,allP] = yolo3PostProcess(modelOutput[1], tf.tensor2d(anchors,[3,2],'float32'), config.numOfClasses,16);
                 return filterBoxes(allB,allC,allP,0.01,width,height);
             });
 
@@ -141,6 +143,11 @@ const DetectUtil:IDetectUtil = {
             const preS = tf.concat([preS1,preS2]);
             const preC = tf.concat([preC1,preC2]);
             tf.dispose([input,preB1,preB2,preS1,preS2,preC1,preC2])
+           /*
+            const preB = preB1;
+            const preS = preS1;
+            const preC = preC1;
+            */
     
             if (preB==null) {
                 tf.dispose([preB,preS,preC])

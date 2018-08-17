@@ -9,12 +9,12 @@ export default class DrawToCanvas {
     }
 
     public static clearCanvas(canvas:HTMLCanvasElement): void {
-        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+        (canvas.getContext('2d') as CanvasRenderingContext2D).clearRect(0, 0, canvas.width, canvas.height);
     }
 
     public static drawRect(canvas:HTMLCanvasElement, rect:IRect, color:string = "#fff", thickness:number = 1): void {
         // preserve context 
-        const ctx:CanvasRenderingContext2D = canvas.getContext('2d');
+        const ctx:CanvasRenderingContext2D = canvas.getContext('2d') as CanvasRenderingContext2D;
         ctx.save();
 
         // set parameters
@@ -30,7 +30,7 @@ export default class DrawToCanvas {
 
     public static drawText(canvas:HTMLCanvasElement, text:string, textSize:number, anchorPoint:IPoint, color:string = "#ffffff", bold:boolean = false):void {
         // preserve context
-        const ctx:CanvasRenderingContext2D = canvas.getContext('2d');
+        const ctx:CanvasRenderingContext2D = canvas.getContext('2d') as CanvasRenderingContext2D;
         ctx.save();
 
         // set parameters
@@ -47,7 +47,7 @@ export default class DrawToCanvas {
     public static drawPredictionRect(canvas:HTMLCanvasElement, classString:string, prediction:IDetection, thickness:number = 1, color:string = "#fff", textSize:number = 10): void {
         DrawToCanvas.drawRect(canvas, prediction.box, color, thickness);
 
-        const ctx:CanvasRenderingContext2D = canvas.getContext('2d');
+        const ctx:CanvasRenderingContext2D = canvas.getContext('2d') as CanvasRenderingContext2D;
         ctx.save();
 
         ctx.font = "bold " + textSize + "px Titillium Web";

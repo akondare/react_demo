@@ -8,5 +8,5 @@ interface IProps {
 }
 
 export default function(props:IProps) {
-    return <button className={"Button " + (props.enabled ? ((props.toggle===true) ? "Toggled" : "Enabled") : "Disabled")} onClick={props.toggle==null ? (props.enabled ? props.handler : null) : props.handler}> {props.title} </button>
+    return <button className={"Button " + (props.enabled ? ((props.toggle===true) ? "Toggled" : "Enabled") : "Disabled")} onClick={props.toggle==null ? (props.enabled ? props.handler : undefined) : props.handler}> {props.title} </button>
 }

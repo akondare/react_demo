@@ -7,7 +7,7 @@ export interface IRect {
     width:number;
 }
 
-export class Rect implements IRect {
+export default class Rect implements IRect {
     
     public left:number;
     public top:number;
